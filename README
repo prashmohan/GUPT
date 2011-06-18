@@ -1,0 +1,5 @@
+GUPT is a privacy preserving data mining platform. GUPT guarantees
+privacy in statistical databases using Differential Privacy. In order
+to use arbitrary binaries, for your computation, you will need to
+invoke your binary from the GuptComputeProvider object, and possibly
+pipe IO through some form of IPC mechanism.
