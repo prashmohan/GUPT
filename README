@@ -3,3 +3,9 @@ privacy in statistical databases using Differential Privacy. In order
 to use arbitrary binaries, for your computation, you will need to
 invoke your binary from the GuptComputeProvider object, and possibly
 pipe IO through some form of IPC mechanism.
+
+Project Members:
+        Prashanth Mohan (http://www.cs.berkeley.edu/~prmohan)
+        Abhradeep Guha Thakurta (https://sites.google.com/site/guhathakurtaabhradeep/)
+        Elaine Shi (http://www.eecs.berkeley.edu/~elaines/)
+        Dawn Song (http://www.cs.berkeley.edu/~dawnsong/)
