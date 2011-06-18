@@ -53,8 +53,9 @@ class CSVDriver(GuptDataDriver):
 
     def get_next_record(self):
         record = self.csv_file.next()
-        if self.filter and self.filter(record):
-            return record
+        if self.filter and not self.filter(record):
+            return None
+        return record
     
     
 if __name__ == '__main__':
