@@ -84,8 +84,13 @@ class GuptRunTime(object):
     from the DataDriver to the computation and finally estimates the
     noise required to guarantee differential privacy.
     """
-    def __init__(self):
-        pass
+    def __init__(self, compute_driver, data_driver):
+        self.compute_driver = compute_driver
+        self.data_driver = data_driver
+        if not isinstance(compute_driver, GuptComputeDriver):
+            raise GuptException("Argument compute_driver is not subclassed from GuptComputeDriver")
+        if not isinstance(data_driver, datadriver.GuptDataDriver):
+            raise GuptException("Argument data_driver is not subclassed from GuptDataDriver")
 
     def start(self):
         pass
@@ -95,11 +100,30 @@ class GuptComputeDriver(object):
     """
     This class should be subclassed by the Computation Provider. All
     of the computation should be encapsulated in a class that
-    subclasses GuptComputeDriver. The `run' function of the
-    computation class will be invoked upon load.
+    subclasses GuptComputeDriver. The `initialize' function of the
+    computation class will be invoked upon load. Subsequently, the
+    `exec' function will be executed for each record and the
+    `finalize' function will be executed before the termination of the
+    program. The output from any and all of these functions will be
+    interpreted as part of the output of the program.
     """
-    def run(self):
+    def initialize(self):
+        """
+        Optionally implemented to initalize the computation
+        """
+        pass
+
+    def exec(self):
+        """
+        Must be overridden to provide execution logic for each record
+        """
         raise GuptException("This function should be over ridden")
+
+    def finalize(self):
+        """
+        Optionally implemented to handle the termination of the program
+        """
+        pass
 
 
 if __name__ == '__main__':
