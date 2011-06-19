@@ -34,6 +34,10 @@ DAMAGE.
 import sys
 import os
 import logging
+import random
+import types
+import math
+import dpalgos
 import datadriver.datadriver as datadriver
 
 # Log verbosely
@@ -72,6 +76,18 @@ sys.excepthook = handle_errors
 
 log = logging.getLogger(__name__)
 
+class GuptOutput(object):
+    def __init__(self):
+        self.output = []
+
+    def append(self, record):
+        if not record:
+            return
+        if type(record) == types.ListType:
+            self.output.extend(record)
+        else:
+            self.output.append(record)
+            
 
 class GuptException(Exception):
     pass
@@ -84,17 +100,110 @@ class GuptRunTime(object):
     from the DataDriver to the computation and finally estimates the
     noise required to guarantee differential privacy.
     """
-    def __init__(self, compute_driver, data_driver):
-        self.compute_driver = compute_driver
-        self.data_driver = data_driver
-        if not isinstance(compute_driver, GuptComputeDriver):
+    def __init__(self, compute_driver_class, data_driver, epsilon):
+        self.epsilon = epsilon
+        if not issubclass(compute_driver_class, GuptComputeDriver):
             raise GuptException("Argument compute_driver is not subclassed from GuptComputeDriver")
         if not isinstance(data_driver, datadriver.GuptDataDriver):
             raise GuptException("Argument data_driver is not subclassed from GuptDataDriver")
+        self.compute_driver_class = compute_driver_class()
+        self.data_driver = data_driver
+
+    @staticmethod
+    def sign(number):
+        """
+        Returns the sign of the number.
+        -1 if number < 0, 0 if number == 0 and +1 if number > 0
+        """
+        return cmp(number, 0)
+
+    def gen_noise(self, scale):
+        """
+        Generate a Laplacian noise to satisfy differential privacy
+        """
+        uniform = random.random() - 0.5
+        return scale * sign(uniform) * math.log(1 - 2.0 * abs(uniform))
 
     def start(self):
-        pass
+        """
+        Start the differentially private data analysis
+        """
+        # Retrieve the input records
+        records = self.data_driver.get_records()
+
+        # Obtain the output bounds on the data
+        lower_bounds, higher_bounds = self.get_data_bounds(records)
+
+        # Execute the various intances of the computation
+        outputs = self.exec(records)
+        
+        # Ensure that the output dimension was the same for all
+        # instances of the computation
+        lengths = set([len(output) for output in outputs])
+        if len(lengths) > 1 or lengths[0] != len(higher_bounds) or \
+                length[0] != len(lower_bounds):
+            raise GuptException("Output dimension is varying for each instance of the computation")
+
+        # Aggregate and privatize the final output from various instances
+        final_output = self.privatize(epsilon / (3 * len(outputs[0])), \
+                                          lower_bounds, higher_bounds, outputs)
+        return final_output
+        
+    def get_data_bounds(self, records):
+        """
+        Generate the output bounds for the given data set for a pre
+        defined computation
+        """
+        compute_driver = self.compute_driver_class()
+        first_quartile = dpalgos.estimate_percentile(25, records)
+        third_quartile = dpalgos.estimate_percentile(75, records)
+        lower_bounds = compute_driver.get_lower_bounds(first_quartile, third_quartile)
+        higher_bounds = compute_driver.get_lower_bounds(first_quartile, third_quartile)
+        return lower_bounds, higher_bounds
     
+    def exec(self, records):
+        """
+        Execute the computation provider in a differentially private
+        manner for the given set of records.
+        """
+        num_records = len(records)
+        # TODO: Check if we can use random.sample instead of
+        # shuffle. Heavy performance benefits.
+        random.shuffle(records)
+        block_size = int(num_records ** 0.4)
+        outputs = []
+        for indices in range(0, num_records, block_size):
+            compute_driver = self.compute_driver_class()
+            cur_output = GuptOutput()
+            cur_output.append(compute_driver.initalize())
+            for record in records[indices : indices + block_size]:
+                cur_output.append(compute_driver.exec(record))
+            cur_output.append(compute_driver.finalize())
+            outputs.append(cur_output)
+        return outputs
+
+    def privatize(self, epsilon, lower_bounds, higher_bounds, outputs):
+        """
+        Converts the output of many instances of the computation
+        into a differentially private answer
+        """
+        bound_ranges = []
+        for index in range(len(lower_bounds)):
+            bound_ranges.append(abs(lower_bounds[index] - higher_bounds[index]))
+        
+        # Take the average of the outputs of each instance of the
+        # computation
+        final_output = [0.0] * len(output[0])
+        for output in outputs:
+            for index, val in enumerate(output):
+                final_output[index] += val
+
+        # Add a Laplacian noise in order to ensure differential privacy
+        for index in range(len(final_output)):
+            final_output[index] = final_output[index] / len(output) + \
+                self.gen_noise(bound_ranges[index] / (epsilon * len(outputs)))
+        return final_output
+            
 
 class GuptComputeDriver(object):
     """
@@ -113,7 +222,7 @@ class GuptComputeDriver(object):
         """
         pass
 
-    def exec(self):
+    def exec(self, record):
         """
         Must be overridden to provide execution logic for each record
         """
@@ -124,6 +233,12 @@ class GuptComputeDriver(object):
         Optionally implemented to handle the termination of the program
         """
         pass
+
+    def get_lower_bounds(self, first_quartile, third_quartile):
+        raise GuptException("This function should be over ridden")
+
+    def get_higher_bounds(self, first_quartile, third_quartile):
+        raise GuptException("This function should be over ridden")
 
 
 if __name__ == '__main__':
