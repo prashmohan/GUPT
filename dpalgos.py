@@ -34,8 +34,41 @@ DAMAGE.
 import sys
 import os
 import logging
+import math
+import random
 
 log = logging.getLogger(__name__)
 
-def estimate_percentile(percentile, records):
-    pass
+def estimate_percentile(percentile, records, epsilon, min_val, max_val):
+    vals = [min_val, max_val] + records
+    # TODO: Possibly replace the List object with a numpy.array
+    # object. Might lead to better performance
+    for index, val in enumerate(vals):
+        if val > max_val:
+            vals[index] = max_val
+        elif val < min_val:
+            vals[index] = min_val
+    vals.sort()
+
+    k = len(vals) - 2
+    diff_vals = [(vals[index + 1] - vals[index]) * math.exp(-epsilon * abs(index - percentile * k)) for index in range(len(vals) - 1)]
+
+    # Store the reverse partial sum
+    part_sum = [0] * (k + 1)
+    part_sum[k] = diff_vals[k]
+    for index in range(k - 1, -1, -1):
+        part_sum[index] = part_sum[index + 1] + diff_vals[index]
+
+    # Pick the partition
+    picked = 0
+    for index in range(k):
+        frac = 0.0
+        try:
+            frac = diff_vals[index] / part_sum[index]
+        except ZeroDivisionError:
+            continue
+        if random.random() < frac:            
+            picked = index
+            break
+    output = vals[picked] + (vals[picked + 1] - vals[picked]) * random.random();
+    return output    

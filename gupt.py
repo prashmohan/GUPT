@@ -89,10 +89,6 @@ class GuptOutput(object):
             self.output.append(record)
             
 
-class GuptException(Exception):
-    pass
-
-
 class GuptRunTime(object):
     """
     This class defines the runtime for GUPT. It requires a DataDriver
@@ -103,9 +99,9 @@ class GuptRunTime(object):
     def __init__(self, compute_driver_class, data_driver, epsilon):
         self.epsilon = epsilon
         if not issubclass(compute_driver_class, GuptComputeDriver):
-            raise GuptException("Argument compute_driver is not subclassed from GuptComputeDriver")
+            raise logging.exception("Argument compute_driver is not subclassed from GuptComputeDriver")
         if not isinstance(data_driver, datadriver.GuptDataDriver):
-            raise GuptException("Argument data_driver is not subclassed from GuptDataDriver")
+            raise logging.exception("Argument data_driver is not subclassed from GuptDataDriver")
         self.compute_driver_class = compute_driver_class()
         self.data_driver = data_driver
 
@@ -128,38 +124,60 @@ class GuptRunTime(object):
         """
         Start the differentially private data analysis
         """
+        logging.info("Initializing the differentially private data analysis for " +
+                     str(self.compute_driver_class) + " on " +
+                     str(self.data_driver))
+        
         # Retrieve the input records
+        start_time = time.time()
         records = self.data_driver.get_records()
+        logging.debug("Finished reading all records: " + str(time.time() - start_time))
 
         # Obtain the output bounds on the data
+        start_time = time.time()
         lower_bounds, higher_bounds = self.get_data_bounds(records)
-
+        logging.debug("Finished generating the bounds: " + str(time.time() - start_time))
+        
         # Execute the various intances of the computation
+        logging.info("Initializing execution of data analysis")
+        start_time = time.time()
         outputs = self.exec(records)
+        logging.debug("Finished executing the computation: " + str(time.time() - start_time))
         
         # Ensure that the output dimension was the same for all
         # instances of the computation
         lengths = set([len(output) for output in outputs])
         if len(lengths) > 1 or lengths[0] != len(higher_bounds) or \
                 length[0] != len(lower_bounds):
-            raise GuptException("Output dimension is varying for each instance of the computation")
+            raise logging.exception("Output dimension is varying for each instance of the computation")
 
         # Aggregate and privatize the final output from various instances
         final_output = self.privatize(epsilon / (3 * len(outputs[0])), \
                                           lower_bounds, higher_bounds, outputs)
         return final_output
         
-    def get_data_bounds(self, records):
+    def get_data_bounds(self, records, epsilon):
         """
         Generate the output bounds for the given data set for a pre
         defined computation
         """
         compute_driver = self.compute_driver_class()
-        first_quartile = dpalgos.estimate_percentile(25, records)
-        third_quartile = dpalgos.estimate_percentile(75, records)
-        lower_bounds = compute_driver.get_lower_bounds(first_quartile, third_quartile)
-        higher_bounds = compute_driver.get_lower_bounds(first_quartile, third_quartile)
-        return lower_bounds, higher_bounds
+        min_val, max_val = compute_driver.get_input_bounds()
+
+        # Find the first and third quartile of the distribution in a
+        # differentially private manner
+        records_transpose = zip(records)
+        first_quartile = [dpalgos.estimate_percentile(0.25, col, epsilon,
+                                                      min_val, max_val)
+                          for col in records_transpose]
+        third_quartile = [dpalgos.estimate_percentile(0.75, records, epsilon,
+                                                      min_val, max_val)
+                          for col in records_transpose]
+
+        # Use the ComputeDriver's bound generator to generate the
+        # output bounds
+        return compute_driver.get_output_bounds(first_quartile,
+                                                third_quartile)
     
     def exec(self, records):
         """
@@ -226,7 +244,7 @@ class GuptComputeDriver(object):
         """
         Must be overridden to provide execution logic for each record
         """
-        raise GuptException("This function should be over ridden")
+        raise logging.exception("This function should be over ridden")
 
     def finalize(self):
         """
@@ -234,11 +252,17 @@ class GuptComputeDriver(object):
         """
         pass
 
-    def get_lower_bounds(self, first_quartile, third_quartile):
-        raise GuptException("This function should be over ridden")
+    def get_output_bounds(self, first_quartile, third_quartile):
+        """
+        Retrieve the bounds on the output for the computation
+        """
+        raise logging.exception("This function should be over ridden")
 
-    def get_higher_bounds(self, first_quartile, third_quartile):
-        raise GuptException("This function should be over ridden")
+    def get_input_bounds(self):
+        """
+        Retrieve the bounds on the input for the computation
+        """
+        raise logging.exception("This function should be over ridden")
 
 
 if __name__ == '__main__':
