@@ -30,35 +30,51 @@ TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 """
-
 import sys
 import os
 import logging
-from datadriver import GuptDataDriver
-import csv
 
 log = logging.getLogger(__name__)
 
-class CSVDriver(GuptDataDriver):
+class GuptComputeDriver(object):
     """
-    This is a sample data driver converts CSV files into data tuples.
+    This class should be subclassed by the Computation Provider. All
+    of the computation should be encapsulated in a class that
+    subclasses GuptComputeDriver. The `initialize' function of the
+    computation class will be invoked upon load. Subsequently, the
+    `execute' function will be executed for each record and the
+    `finalize' function will be executed before the termination of the
+    program. The output from any and all of these functions will be
+    interpreted as part of the output of the program.
     """
-    def __init__(self, skip=0, filter=None, transformer=None):
-        self.skip = skip
-        super(CSVDriver, self).__init__(filter)
-        
-    def set_data_source(self, *fargs):
-        self.csv_file_path = fargs[0]
-        self.csv_file = csv.reader(open(self.csv_file_path, 'r'))
+    def initialize(self):
+        """
+        Optionally implemented to initalize the computation
+        """
+        pass
 
-    def create_record(self):
-        record = None
-        try:
-            return self.csv_file.next()
-        except:
-            return None
-        
-    
-if __name__ == '__main__':
-    print >> sys.stderr, "This is a library and should not be executed standalone"
-    sys.exit(1)
+    def execute(self, record):
+        """
+        Must be overridden to provide execution logic for each record
+        """
+        raise logging.exception("This function should be over ridden")
+
+    def finalize(self):
+        """
+        Optionally implemented to handle the termination of the program
+        """
+        pass
+
+    def get_output_bounds(self, first_quartile, third_quartile):
+        """
+        Retrieve the bounds on the output for the computation
+        """
+        raise logging.exception("This function should be over ridden")
+
+    def get_input_bounds(self):
+        """
+        Retrieve the bounds on the input for the computation
+        """
+        raise logging.exception("This function should be over ridden")
+
+

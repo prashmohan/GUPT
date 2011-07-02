@@ -38,7 +38,8 @@ import random
 import types
 import math
 import dpalgos
-import datadriver.datadriver as datadriver
+from datadriver.datadriver import GuptDataDriver
+from computedriver.computedriver import GuptComputeDriver
 
 # Log verbosely
 root_logger = logging.getLogger('')
@@ -100,7 +101,7 @@ class GuptRunTime(object):
         self.epsilon = epsilon
         if not issubclass(compute_driver_class, GuptComputeDriver):
             raise logging.exception("Argument compute_driver is not subclassed from GuptComputeDriver")
-        if not isinstance(data_driver, datadriver.GuptDataDriver):
+        if not isinstance(data_driver, GuptDataDriver):
             raise logging.exception("Argument data_driver is not subclassed from GuptDataDriver")
         self.compute_driver_class = compute_driver_class()
         self.data_driver = data_driver
@@ -141,7 +142,7 @@ class GuptRunTime(object):
         # Execute the various intances of the computation
         logging.info("Initializing execution of data analysis")
         start_time = time.time()
-        outputs = self.exec(records)
+        outputs = self.execute(records)
         logging.debug("Finished executing the computation: " + str(time.time() - start_time))
         
         # Ensure that the output dimension was the same for all
@@ -179,7 +180,7 @@ class GuptRunTime(object):
         return compute_driver.get_output_bounds(first_quartile,
                                                 third_quartile)
     
-    def exec(self, records):
+    def execute(self, records):
         """
         Execute the computation provider in a differentially private
         manner for the given set of records.
@@ -195,7 +196,7 @@ class GuptRunTime(object):
             cur_output = GuptOutput()
             cur_output.append(compute_driver.initalize())
             for record in records[indices : indices + block_size]:
-                cur_output.append(compute_driver.exec(record))
+                cur_output.append(compute_driver.execute(record))
             cur_output.append(compute_driver.finalize())
             outputs.append(cur_output)
         return outputs
@@ -222,48 +223,6 @@ class GuptRunTime(object):
                 self.gen_noise(bound_ranges[index] / (epsilon * len(outputs)))
         return final_output
             
-
-class GuptComputeDriver(object):
-    """
-    This class should be subclassed by the Computation Provider. All
-    of the computation should be encapsulated in a class that
-    subclasses GuptComputeDriver. The `initialize' function of the
-    computation class will be invoked upon load. Subsequently, the
-    `exec' function will be executed for each record and the
-    `finalize' function will be executed before the termination of the
-    program. The output from any and all of these functions will be
-    interpreted as part of the output of the program.
-    """
-    def initialize(self):
-        """
-        Optionally implemented to initalize the computation
-        """
-        pass
-
-    def exec(self, record):
-        """
-        Must be overridden to provide execution logic for each record
-        """
-        raise logging.exception("This function should be over ridden")
-
-    def finalize(self):
-        """
-        Optionally implemented to handle the termination of the program
-        """
-        pass
-
-    def get_output_bounds(self, first_quartile, third_quartile):
-        """
-        Retrieve the bounds on the output for the computation
-        """
-        raise logging.exception("This function should be over ridden")
-
-    def get_input_bounds(self):
-        """
-        Retrieve the bounds on the input for the computation
-        """
-        raise logging.exception("This function should be over ridden")
-
 
 if __name__ == '__main__':
     print >> sys.stderr, "This is a library and should not be executed standalone"

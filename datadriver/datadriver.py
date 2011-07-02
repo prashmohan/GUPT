@@ -46,12 +46,13 @@ class GuptDataDriver(object):
     CSVDriver is provided along with Gupt. Finally, the data provider
     will also need to provide bounds on the inputs.
     """    
-    def __init__(self, filter=None):
+    def __init__(self, filter=None, transformer=None):
         """
         The filter is an optional argument that restricts the number
         of tuples under study.
         """
         self.filter = filter
+        self.transformer = transformer
 
     def set_data_source(self, *fargs):
         """
@@ -60,11 +61,21 @@ class GuptDataDriver(object):
         """
         raise GuptException("This function should be over ridden")
 
-    def get_next_record(self):
+    def create_record(self):
         """
-        Read the record
+        Generate the next record
         """
         raise GuptException("This function should be over ridden")
+
+    def get_next_record(self):
+        record = self.create_record()
+        if not record:
+            return None
+        if self.filter and not self.filter(record):
+            return None
+        if not transformer:
+            return self.transformer(record)
+        return map(float, record)
 
     def get_records(self):
         """
