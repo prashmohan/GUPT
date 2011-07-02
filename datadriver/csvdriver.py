@@ -34,7 +34,7 @@ DAMAGE.
 import sys
 import os
 import logging
-import datadriver
+from datadriver import GuptDataDriver
 import csv
 
 log = logging.getLogger(__name__)
@@ -52,7 +52,11 @@ class CSVDriver(GuptDataDriver):
         self.csv_file = csv.reader(open(self.csv_file_path, 'r'))
 
     def get_next_record(self):
-        record = self.csv_file.next()
+        record = None
+        try:
+            record = self.csv_file.next()
+        except:
+            return None
         if self.filter and not self.filter(record):
             return None
         return record

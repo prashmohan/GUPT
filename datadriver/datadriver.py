@@ -69,8 +69,13 @@ class GuptDataDriver(object):
     def get_records(self):
         """
         Retrieve all records
-        """    
-        return [self.get_next_record() while self.records_exist()]
+        """
+        rec = self.get_next_record()
+        records = []
+        while rec:
+            records.append(rec)
+            rec = self.get_next_record()
+        return records
     
     
 if __name__ == '__main__':
