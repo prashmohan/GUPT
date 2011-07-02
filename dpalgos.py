@@ -40,7 +40,8 @@ import random
 log = logging.getLogger(__name__)
 
 def estimate_percentile(percentile, records, epsilon, min_val, max_val):
-    vals = [min_val, max_val] + records
+    vals = [min_val, max_val]
+    vals.extend(records)
     # TODO: Possibly replace the List object with a numpy.array
     # object. Might lead to better performance
     for index, val in enumerate(vals):
@@ -70,5 +71,6 @@ def estimate_percentile(percentile, records, epsilon, min_val, max_val):
         if random.random() < frac:            
             picked = index
             break
+
     output = vals[picked] + (vals[picked + 1] - vals[picked]) * random.random();
     return output    

@@ -43,13 +43,17 @@ class CSVDriver(GuptDataDriver):
     """
     This is a sample data driver converts CSV files into data tuples.
     """
-    def __init__(self, skip=0, filter=None, transformer=None):
+    def __init__(self, skip=0, filter=None, transformer=None, delimiter=','):
         self.skip = skip
-        super(CSVDriver, self).__init__(filter)
+        self.delimiter = delimiter
+        super(CSVDriver, self).__init__(filter=filter, transformer=transformer)
         
     def set_data_source(self, *fargs):
         self.csv_file_path = fargs[0]
-        self.csv_file = csv.reader(open(self.csv_file_path, 'r'))
+        self.csv_file = csv.reader(open(self.csv_file_path, 'r'),
+                                   delimiter=self.delimiter)
+        for lineno in range(self.skip):
+            self.csv_file.next()
 
     def create_record(self):
         record = None

@@ -73,8 +73,8 @@ class GuptDataDriver(object):
             return None
         if self.filter and not self.filter(record):
             return None
-        if not transformer:
-            return self.transformer(record)
+        if self.transformer:
+            return map(float, self.transformer(record))
         return map(float, record)
 
     def get_records(self):
