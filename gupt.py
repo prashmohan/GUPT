@@ -177,19 +177,32 @@ class GuptRunTime(object):
         defined computation
         """
         compute_driver = self.compute_driver_class()
-        min_val, max_val = compute_driver.get_input_bounds()
+        min_vals, max_vals = self.data_driver.min_bounds, self.data_driver.max_bounds
+        sensitive = self.data_driver.sensitiveness
 
         # Find the first and third quartile of the distribution in a
         # differentially private manner
         records_transpose = zip(*records)
-        logging.debug("Estimating first quartile")
-        first_quartile = [dpalgos.estimate_percentile(0.25, col, epsilon,
-                                                      min_val, max_val)
-                          for col in records_transpose]
-        logging.debug("Estimating third quartile")
-        third_quartile = [dpalgos.estimate_percentile(0.75, records, epsilon,
-                                                      min_val, max_val)
-                          for col in records_transpose]
+        logging.debug("Estimating quartiles")
+        first_quartile = []
+        third_quartile = []
+        for index in range(len(records_transpose)):
+            if not sensitive[index]:
+                first_quartile.append(0)
+                third_quartile.append(0)
+                fq = dpalgos.estimate_percentile(0.25,
+                                                 records_transpose[index],
+                                                 epsilon,
+                                                 min_vals[index],
+                                                 max_vals[index])
+                tq = dpalgos.estimate_percentile(0.75,
+                                                 records_transpose[index],
+                                                 epsilon,
+                                                 min_vals[index],
+                                                 max_vals[index])
+                first_quartile.append(fq)
+                third_quartile.append(tq)
+
         logging.debug("Finished quartile estimation")
         logging.debug("Output bound estimation in progress")
         # Use the ComputeDriver's bound generator to generate the

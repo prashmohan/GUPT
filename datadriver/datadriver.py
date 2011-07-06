@@ -61,6 +61,12 @@ class GuptDataDriver(object):
         """
         raise GuptException("This function should be over ridden")
 
+    def set_input_bounds(self, bounds):
+        self.max_bounds, self.min_bounds = zip(*bounds)
+
+    def set_sensitiveness(self, sensitiveness):
+        self.sensitiveness = sensitiveness
+
     def create_record(self):
         """
         Generate the next record

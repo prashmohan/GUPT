@@ -15,6 +15,8 @@ def ART_transformer(records):
 
 reader = CSVDriver(filter=ART_filter, transformer=ART_transformer, delimiter=' ')
 reader.set_data_source('sensordb.txt')
+reader.set_input_bounds([[0, 0], [0, 1]])
+reader.set_sensitiveness([False, True])
 
 
 # Compute Provider Code
@@ -36,10 +38,7 @@ class MeanComputer(gupt.GuptComputeDriver):
     def get_output_bounds(self, first_quartile, third_quartile):
         return [first_quartile[1]], [third_quartile[1]]
 
-    def get_input_bounds(self):
-        return (0, 1)
-    
-        
+
 if __name__ == '__main__':
     runtime = gupt.GuptRunTime(MeanComputer, reader, 1.0)
     output = runtime.start()
