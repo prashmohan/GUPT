@@ -109,7 +109,7 @@ class GuptRunTime(object):
     from the DataDriver to the computation and finally estimates the
     noise required to guarantee differential privacy.
     """
-    def __init__(self, compute_driver_class, data_driver, epsilon):
+    def __init__(self, compute_driver_class, data_driver, epsilon, gamma=None):
         self.epsilon = float(epsilon)
         if not issubclass(compute_driver_class, GuptComputeDriver):
             raise log.exception("Argument compute_driver is not subclassed from GuptComputeDriver")
@@ -117,20 +117,21 @@ class GuptRunTime(object):
             raise logger.exception("Argument data_driver is not subclassed from GuptDataDriver")
         self.compute_driver_class = compute_driver_class
         self.data_driver = data_driver
+        self.gamma = gamma
 
-    def sign(self, number):
+    def _sign(self, number):
         """
         Returns the sign of the number.
         -1 if number < 0, 0 if number == 0 and +1 if number > 0
         """
         return cmp(number, 0)
 
-    def gen_noise(self, scale):
+    def _gen_noise(self, scale):
         """
         Generate a Laplacian noise to satisfy differential privacy
         """
         uniform = random.random() - 0.5
-        return scale * self.sign(uniform) * math.log(1 - 2.0 * abs(uniform))
+        return scale * self._sign(uniform) * math.log(1 - 2.0 * abs(uniform))
 
     def start(self):
         """
@@ -147,7 +148,7 @@ class GuptRunTime(object):
 
         # Obtain the output bounds on the data
         start_time = time.time()
-        lower_bounds, higher_bounds = self.get_data_bounds(records, self.epsilon)
+        lower_bounds, higher_bounds = self._get_data_bounds(records, self.epsilon)
         logger.debug("Finished generating the bounds: " + str(time.time() - start_time))
         logger.info("Output bounds are %s and %s" % (str(lower_bounds), str(higher_bounds)))
         
@@ -167,11 +168,11 @@ class GuptRunTime(object):
             raise logger.exception("Output dimension is varying for each instance of the computation")
 
         # Aggregate and privatize the final output from various instances
-        final_output = self.privatize(self.epsilon / (3 * len(outputs[0])), \
+        final_output = self._privatize(self.epsilon / (3 * len(outputs[0])), \
                                           lower_bounds, higher_bounds, outputs)
         return final_output
         
-    def get_data_bounds(self, records, epsilon):
+    def _get_data_bounds(self, records, epsilon):
         """
         Generate the output bounds for the given data set for a pre
         defined computation
@@ -212,11 +213,39 @@ class GuptRunTime(object):
         return compute_driver.get_output_bounds(first_quartile,
                                                 third_quartile)
 
-    def get_blocks_naive(self, records):
-        num_records = len(records)
+    def _get_blocks(self, records):
         # TODO: Check if we can use random.sample instead of
         # shuffle. Heavy performance benefits.
         random.shuffle(records)
+        
+        if not self.gamma:
+            return self._get_blocks_naive(records)
+        return self._get_block_gamma(records)
+
+    def _get_block_gamma(self, records):
+        num_records = len(records)
+        num_blocks = self.gamma * int(num_records ** 0.4) 
+        # Each record is put into gamma blocks. Thus the total number
+        # of blocks becomes gamma * original number of block
+        block_size = int(num_records ** 0.6)
+        # Size of each block does not change
+        blocks = [[]] * num_blocks
+        nonfull_blocks = range(num_blocks)
+        
+        for record in records:
+            random.shuffle(nonfull_blocks)
+            # The current record is inserted into gamma available
+            # blocks chosen at random
+            for block_no in nonfull_blocks[:self.gamma]: 
+                blocks[block_no].append(record)
+                if len(blocks[block_no]) >= block_size:
+                    # Remove block from contenders list if block is
+                    # already full
+                    nonfull_blocks.remove(block_no)
+        return blocks
+            
+    def _get_blocks_naive(self, records):
+        num_records = len(records)
         num_blocks = int(num_records ** 0.4)
         block_size = int(math.ceil(num_records / num_blocks))
         logger.info("Num Records: %d, Block size: %d, Num blocks: %d" %
@@ -229,7 +258,7 @@ class GuptRunTime(object):
         manner for the given set of records.
         """
         outputs = []
-        blocks = self.get_blocks_naive(records)
+        blocks = self._get_blocks(records)
 
         for index, block in enumerate(blocks):
             logger.debug("Starting data analytics on block no %d / %d" % (index + 1, len(blocks)))
@@ -242,7 +271,7 @@ class GuptRunTime(object):
             outputs.append(cur_output)
         return outputs
 
-    def privatize(self, epsilon, lower_bounds, higher_bounds, outputs):
+    def _privatize(self, epsilon, lower_bounds, higher_bounds, outputs):
         """
         Converts the output of many instances of the computation
         into a differentially private answer
@@ -262,7 +291,7 @@ class GuptRunTime(object):
         for index in range(len(final_output)):
             final_output[index] = final_output[index] / len(outputs)
             logger.info("Final Answer (Unperturbed) Dimension %d = %f" % (index, final_output[index]))
-            noise = self.gen_noise(bound_ranges[index] / (epsilon * len(outputs)))
+            noise = self._gen_noise(bound_ranges[index] / (epsilon * len(outputs)))
             logger.info("Perturbation = " + str(noise))
             final_output[index] += noise
             logger.info("Final Answer (Perturbed) Dimension %d = %f" % (index, final_output[index]))
