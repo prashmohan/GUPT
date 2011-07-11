@@ -37,7 +37,7 @@ import logging
 import math
 import random
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 def estimate_percentile(percentile, records, epsilon, min_val, max_val):
     vals = [min_val, max_val]

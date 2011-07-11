@@ -75,7 +75,7 @@ def handle_errors(exc_type, exc_value, traceback):
         )
 sys.excepthook = handle_errors
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 class GuptOutput(object):
     def __init__(self):
@@ -112,9 +112,9 @@ class GuptRunTime(object):
     def __init__(self, compute_driver_class, data_driver, epsilon):
         self.epsilon = float(epsilon)
         if not issubclass(compute_driver_class, GuptComputeDriver):
-            raise logging.exception("Argument compute_driver is not subclassed from GuptComputeDriver")
+            raise log.exception("Argument compute_driver is not subclassed from GuptComputeDriver")
         if not isinstance(data_driver, GuptDataDriver):
-            raise logging.exception("Argument data_driver is not subclassed from GuptDataDriver")
+            raise logger.exception("Argument data_driver is not subclassed from GuptDataDriver")
         self.compute_driver_class = compute_driver_class
         self.data_driver = data_driver
 
@@ -136,26 +136,26 @@ class GuptRunTime(object):
         """
         Start the differentially private data analysis
         """
-        logging.debug("Initializing the differentially private data analysis for " +
+        logger.debug("Initializing the differentially private data analysis for " +
                      str(self.compute_driver_class) + " on " +
                      str(self.data_driver))
         
         # Retrieve the input records
         start_time = time.time()
         records = self.data_driver.get_records()
-        logging.debug("Finished reading all records: " + str(time.time() - start_time))
+        logger.debug("Finished reading all records: " + str(time.time() - start_time))
 
         # Obtain the output bounds on the data
         start_time = time.time()
         lower_bounds, higher_bounds = self.get_data_bounds(records, self.epsilon)
-        logging.debug("Finished generating the bounds: " + str(time.time() - start_time))
-        logging.info("Output bounds are %s and %s" % (str(lower_bounds), str(higher_bounds)))
+        logger.debug("Finished generating the bounds: " + str(time.time() - start_time))
+        logger.info("Output bounds are %s and %s" % (str(lower_bounds), str(higher_bounds)))
         
         # Execute the various intances of the computation
-        logging.info("Initializing execution of data analysis")
+        logger.info("Initializing execution of data analysis")
         start_time = time.time()
         outputs = self.execute(records)
-        logging.debug("Finished executing the computation: " + str(time.time() - start_time))
+        logger.debug("Finished executing the computation: " + str(time.time() - start_time))
         
         # Ensure that the output dimension was the same for all
         # instances of the computation
@@ -164,7 +164,7 @@ class GuptRunTime(object):
         lengths.add(lens_peek)
         if len(lengths) > 1 or lens_peek != len(higher_bounds) or \
                 lens_peek != len(lower_bounds):
-            raise logging.exception("Output dimension is varying for each instance of the computation")
+            raise logger.exception("Output dimension is varying for each instance of the computation")
 
         # Aggregate and privatize the final output from various instances
         final_output = self.privatize(self.epsilon / (3 * len(outputs[0])), \
@@ -183,7 +183,7 @@ class GuptRunTime(object):
         # Find the first and third quartile of the distribution in a
         # differentially private manner
         records_transpose = zip(*records)
-        logging.debug("Estimating quartiles")
+        logger.debug("Estimating quartiles")
         first_quartile = []
         third_quartile = []
         for index in range(len(records_transpose)):
@@ -204,8 +204,8 @@ class GuptRunTime(object):
                 first_quartile.append(fq)
                 third_quartile.append(tq)
 
-        logging.debug("Finished quartile estimation")
-        logging.debug("Output bound estimation in progress")
+        logger.debug("Finished quartile estimation")
+        logger.debug("Output bound estimation in progress")
         # Use the ComputeDriver's bound generator to generate the
         # output bounds
 
@@ -219,8 +219,8 @@ class GuptRunTime(object):
         random.shuffle(records)
         num_blocks = int(num_records ** 0.4)
         block_size = int(math.ceil(num_records / num_blocks))
-        logging.info("Num Records: %d, Block size: %d, Num blocks: %d" %
-                     (num_records, block_size, num_blocks))
+        logger.info("Num Records: %d, Block size: %d, Num blocks: %d" %
+                    (num_records, block_size, num_blocks))
         return [records[indices : indices + block_size] for indices in range(0, num_records, block_size)]
     
     def execute(self, records):
@@ -232,7 +232,7 @@ class GuptRunTime(object):
         blocks = self.get_blocks_naive(records)
 
         for index, block in enumerate(blocks):
-            logging.debug("Starting data analytics on block no %d / %d" % (index + 1, len(blocks)))
+            logger.debug("Starting data analytics on block no %d / %d" % (index + 1, len(blocks)))
             compute_driver = self.compute_driver_class()
             cur_output = GuptOutput()
             cur_output.append(compute_driver.initialize())
@@ -261,11 +261,11 @@ class GuptRunTime(object):
         # Add a Laplacian noise in order to ensure differential privacy
         for index in range(len(final_output)):
             final_output[index] = final_output[index] / len(outputs)
-            logging.info("Final Answer (Unperturbed) Dimension %d = %f" % (index, final_output[index]))
+            logger.info("Final Answer (Unperturbed) Dimension %d = %f" % (index, final_output[index]))
             noise = self.gen_noise(bound_ranges[index] / (epsilon * len(outputs)))
-            logging.info("Perturbation = " + str(noise))
+            logger.info("Perturbation = " + str(noise))
             final_output[index] += noise
-            logging.info("Final Answer (Perturbed) Dimension %d = %f" % (index, final_output[index]))
+            logger.info("Final Answer (Perturbed) Dimension %d = %f" % (index, final_output[index]))
         return final_output
             
 

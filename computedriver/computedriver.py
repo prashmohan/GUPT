@@ -34,7 +34,7 @@ import sys
 import os
 import logging
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 class GuptComputeDriver(object):
     """
@@ -57,7 +57,7 @@ class GuptComputeDriver(object):
         """
         Must be overridden to provide execution logic for each record
         """
-        raise logging.exception("This function should be over ridden")
+        raise logger.exception("This function should be over ridden")
 
     def finalize(self):
         """
@@ -69,12 +69,12 @@ class GuptComputeDriver(object):
         """
         Retrieve the bounds on the output for the computation
         """
-        raise logging.exception("This function should be over ridden")
+        raise logger.exception("This function should be over ridden")
 
     def get_input_bounds(self):
         """
         Retrieve the bounds on the input for the computation
         """
-        raise logging.exception("This function should be over ridden")
+        raise logger.exception("This function should be over ridden")
 
 

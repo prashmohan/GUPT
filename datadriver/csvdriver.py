@@ -37,7 +37,7 @@ import logging
 from datadriver import GuptDataDriver
 import csv
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 class CSVDriver(GuptDataDriver):
     """
