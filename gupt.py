@@ -190,6 +190,7 @@ class GuptRunTime(object):
             if not sensitive[index]:
                 first_quartile.append(0)
                 third_quartile.append(0)
+            else:
                 fq = dpalgos.estimate_percentile(0.25,
                                                  records_transpose[index],
                                                  epsilon,
