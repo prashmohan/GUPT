@@ -71,10 +71,3 @@ class GuptComputeDriver(object):
         """
         raise logger.exception("This function should be over ridden")
 
-    def get_input_bounds(self):
-        """
-        Retrieve the bounds on the input for the computation
-        """
-        raise logger.exception("This function should be over ridden")
-
-
