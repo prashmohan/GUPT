@@ -208,6 +208,7 @@ class GuptRunTime(object):
         logging.debug("Output bound estimation in progress")
         # Use the ComputeDriver's bound generator to generate the
         # output bounds
+
         return compute_driver.get_output_bounds(first_quartile,
                                                 third_quartile)
     
@@ -258,7 +259,9 @@ class GuptRunTime(object):
         for index in range(len(final_output)):
             final_output[index] = final_output[index] / len(outputs)
             logging.info("Final Answer (Unperturbed) Dimension %d = %f" % (index, final_output[index]))
-            final_output[index] += self.gen_noise(bound_ranges[index] / (epsilon * len(outputs)))
+            noise = self.gen_noise(bound_ranges[index] / (epsilon * len(outputs)))
+            logging.info("Perturbation = " + str(noise))
+            final_output[index] += noise
             logging.info("Final Answer (Perturbed) Dimension %d = %f" % (index, final_output[index]))
         return final_output
             
