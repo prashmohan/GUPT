@@ -211,12 +211,8 @@ class GuptRunTime(object):
 
         return compute_driver.get_output_bounds(first_quartile,
                                                 third_quartile)
-    
-    def execute(self, records):
-        """
-        Execute the computation provider in a differentially private
-        manner for the given set of records.
-        """
+
+    def get_blocks_naive(self, records):
         num_records = len(records)
         # TODO: Check if we can use random.sample instead of
         # shuffle. Heavy performance benefits.
@@ -225,15 +221,22 @@ class GuptRunTime(object):
         block_size = int(math.ceil(num_records / num_blocks))
         logging.info("Num Records: %d, Block size: %d, Num blocks: %d" %
                      (num_records, block_size, num_blocks))
+        return [records[indices : indices + block_size] for indices in range(0, num_records, block_size)]
+    
+    def execute(self, records):
+        """
+        Execute the computation provider in a differentially private
+        manner for the given set of records.
+        """
         outputs = []
+        blocks = self.get_blocks_naive(records)
 
-        for indices in range(0, num_records, block_size):
-            logging.debug("Starting data analytics on block no %d, indices %d - %d" %
-                          (indices / block_size, indices, indices + block_size))
+        for index, block in enumerate(blocks):
+            logging.debug("Starting data analytics on block no %d / %d" % (index + 1, len(blocks)))
             compute_driver = self.compute_driver_class()
             cur_output = GuptOutput()
             cur_output.append(compute_driver.initialize())
-            for record in records[indices : indices + block_size]:
+            for record in block:
                 cur_output.append(compute_driver.execute(record))
             cur_output.append(compute_driver.finalize())
             outputs.append(cur_output)
