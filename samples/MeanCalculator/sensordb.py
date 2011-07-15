@@ -11,7 +11,7 @@ def ART_filter(records):
     return False
 
 def ART_transformer(records):
-    return [int(hashlib.sha1(records[0]).hexdigest(), 16)] + records[1:]
+    return [int(hashlib.sha1(records[0]).hexdigest(), 16)] + map(float, records[1:])
 
 reader = CSVDriver(filter=ART_filter, transformer=ART_transformer, delimiter=' ')
 reader.set_data_source('sensordb.txt')

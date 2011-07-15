@@ -36,9 +36,31 @@ import os
 import logging
 import math
 import random
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
+def histogram(records_transpose, sensitive, epsilon):
+    logger.debug("Estimating the distribution of values")
+    hist = []
+    for index, column in enumerate(records_transpose):
+        if not sensitive[index]:
+            hist.append(None)
+        else:
+            hist.append(_get_dp_hist(column, epsilon))
+    return hist
+
+def _get_dp_hist(records, epsilon):
+    records = np.array(records)
+    TOTAL_BUCKETS = 10
+    counts = np.histogram(records, bins=TOTAL_BUCKETS)
+
+    hist = np.array(map(float, counts[0]))
+    for x in range(len(hist)):
+        hist[x] += gen_noise(1.0 / epsilon)
+        hist[x] /= len(records)
+    return hist    
+    
 def estimate_percentile(percentile, records, epsilon, min_val, max_val):
     vals = [min_val, max_val]
     vals.extend(records)
@@ -74,3 +96,17 @@ def estimate_percentile(percentile, records, epsilon, min_val, max_val):
 
     output = vals[picked] + (vals[picked + 1] - vals[picked]) * random.random();
     return output    
+
+def _sign(number):
+    """
+    Returns the sign of the number.
+    -1 if number < 0, 0 if number == 0 and +1 if number > 0
+    """
+    return cmp(number, 0)
+
+def gen_noise(scale):
+    """
+    Generate a Laplacian noise to satisfy differential privacy
+    """
+    uniform = random.random() - 0.5
+    return scale * _sign(uniform) * math.log(1 - 2.0 * abs(uniform))

@@ -37,7 +37,7 @@ import logging
 from datadriver import GuptDataDriver
 import sensordb
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 class SensorDBDriver(GuptDataDriver):
     """
@@ -56,6 +56,7 @@ class SensorDBDriver(GuptDataDriver):
         for trace in self.traces:
             for record in zip(*trace.get_data_tuples()):
                 yield [trace.name, record[0], record[1]]
+            yield None
         yield None
 
     def create_record(self):

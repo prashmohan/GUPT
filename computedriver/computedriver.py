@@ -71,3 +71,10 @@ class GuptComputeDriver(object):
         """
         raise logger.exception("This function should be over ridden")
 
+    def get_percentiles(self, histogram):
+        """
+        Return the percentiles of choosing from the data
+        distribution. If this function is not over ridden, then it
+        defaults to the first and third quartiles.
+        """
+        return [(0.25, 0.75)] * len(histogram)

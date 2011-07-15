@@ -184,34 +184,38 @@ class GuptRunTime(object):
         # Find the first and third quartile of the distribution in a
         # differentially private manner
         records_transpose = zip(*records)
-        logger.debug("Estimating quartiles")
-        first_quartile = []
-        third_quartile = []
+
+        hist = dpalgos.histogram(records_transpose, sensitive, epsilon)
+        logger.debug("Ask compute driver what percentile to calculate")
+        percentile_values = compute_driver.get_percentiles(hist)
+        
+        logger.debug("Estimating percentiles")
+        lower_percentiles = []
+        higher_percentiles = []
         for index in range(len(records_transpose)):
             if not sensitive[index]:
-                first_quartile.append(0)
-                third_quartile.append(0)
+                lower_percentiles.append(0)
+                higher_percentiles.append(0)
             else:
-                fq = dpalgos.estimate_percentile(0.25,
+                lp = dpalgos.estimate_percentile(percentile_values[index][0],
                                                  records_transpose[index],
                                                  epsilon,
                                                  min_vals[index],
                                                  max_vals[index])
-                tq = dpalgos.estimate_percentile(0.75,
+                hp = dpalgos.estimate_percentile(percentile_values[index][1],
                                                  records_transpose[index],
                                                  epsilon,
                                                  min_vals[index],
                                                  max_vals[index])
-                first_quartile.append(fq)
-                third_quartile.append(tq)
+                lower_percentiles.append(lp)
+                higher_percentiles.append(hp)
 
-        logger.debug("Finished quartile estimation")
+        logger.debug("Finished percentile estimation")
         logger.debug("Output bound estimation in progress")
         # Use the ComputeDriver's bound generator to generate the
         # output bounds
-
-        return compute_driver.get_output_bounds(first_quartile,
-                                                third_quartile)
+        return compute_driver.get_output_bounds(lower_percentiles,
+                                                higher_percentiles)
 
     def _get_blocks(self, records):
         # TODO: Check if we can use random.sample instead of
@@ -291,7 +295,7 @@ class GuptRunTime(object):
         for index in range(len(final_output)):
             final_output[index] = final_output[index] / len(outputs)
             logger.info("Final Answer (Unperturbed) Dimension %d = %f" % (index, final_output[index]))
-            noise = self._gen_noise(bound_ranges[index] / (epsilon * len(outputs)))
+            noise = dpalgos.gen_noise(float(bound_ranges[index]) / (epsilon * len(outputs)))
             logger.info("Perturbation = " + str(noise))
             final_output[index] += noise
             logger.info("Final Answer (Perturbed) Dimension %d = %f" % (index, final_output[index]))
