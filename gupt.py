@@ -39,6 +39,9 @@ import random
 import types
 import math
 import time
+from multiprocessing import Process, Pipe
+from itertools import izip
+
 import dpalgos
 from datadriver.datadriver import GuptDataDriver
 from computedriver.computedriver import GuptComputeDriver
@@ -76,6 +79,25 @@ def handle_errors(exc_type, exc_value, traceback):
 sys.excepthook = handle_errors
 
 logger = logging.getLogger(__name__)
+
+# Alternate implementation to multiprocessing.Pool.map, since it has
+# many issues with pickling of functions and methods. Below code spawn
+# and parmap taken from
+# http://stackoverflow.com/questions/3288595/multiprocessing-using-pool-map-on-a-function-defined-in-a-class/5792404#5792404
+def spawn(f):
+    def func(pipe,x):
+        pipe.send(f(x))
+        pipe.close()
+    return func
+
+def parmap(f, X):
+    pipe = [Pipe() for x in X]
+    proc = [Process(target=spawn(f), args=(c, x)) for x, (p, c) in izip(X, pipe)]
+    [p.start() for p in proc]
+    [p.join() for p in proc]
+    return [p.recv() for (p, c) in pipe]
+
+# End of parallel map implementation
 
 class GuptOutput(object):
     def __init__(self):
@@ -155,7 +177,7 @@ class GuptRunTime(object):
         # Execute the various intances of the computation
         logger.info("Initializing execution of data analysis")
         start_time = time.time()
-        outputs = self.execute(records)
+        outputs = self.parallel_execute(records)
         logger.debug("Finished executing the computation: " + str(time.time() - start_time))
         
         # Ensure that the output dimension was the same for all
@@ -256,24 +278,37 @@ class GuptRunTime(object):
                     (num_records, block_size, num_blocks))
         return [records[indices : indices + block_size] for indices in range(0, num_records, block_size)]
     
-    def execute(self, records):
+    def _apply_compute_driver(self, block):
+        """
+        Run the provided computation on the block of records
+        """
+        compute_driver = self.compute_driver_class()
+        cur_output = GuptOutput()
+        cur_output.append(compute_driver.initialize())
+        for record in block:
+            cur_output.append(compute_driver.execute(record))
+        cur_output.append(compute_driver.finalize())
+        return cur_output
+    
+    def execute(self, records, mapper=map):
         """
         Execute the computation provider in a differentially private
         manner for the given set of records.
         """
         outputs = []
         blocks = self._get_blocks(records)
+        logger.debug("Starting data analytics on %d blocks" % (len(blocks)))
+        return mapper(self._apply_compute_driver, blocks)
 
-        for index, block in enumerate(blocks):
-            logger.debug("Starting data analytics on block no %d / %d" % (index + 1, len(blocks)))
-            compute_driver = self.compute_driver_class()
-            cur_output = GuptOutput()
-            cur_output.append(compute_driver.initialize())
-            for record in block:
-                cur_output.append(compute_driver.execute(record))
-            cur_output.append(compute_driver.finalize())
-            outputs.append(cur_output)
-        return outputs
+    def parallel_execute(self, records):
+        """
+        Differentially private execution of the computation provider
+        in a parallel fashion for the given set of records.
+        """
+        # Not using multiprocessing.Pool.map because it is having
+        # issues with pickling of functions and various data
+        # structures. 
+        return self.execute(records, mapper=parmap)
 
     def _privatize(self, epsilon, lower_bounds, higher_bounds, outputs):
         """
