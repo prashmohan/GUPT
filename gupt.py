@@ -160,7 +160,43 @@ class GuptRunTime(object):
         uniform = random.random() - 0.5
         return scale * self._sign(uniform) * math.log(1 - 2.0 * abs(uniform))
 
-    def start(self):
+    def _privatize_windsorized(self, epsilon, lower_bounds, higher_bounds, outputs):
+        outputs_transpose = zip(*outputs)
+        final_output = []
+
+        for index, dimension in enumerate(outputs_transpose):
+            rad = len(dimension)**(1.0/3 + 0.1)
+            
+            # Estimate the range of outputs
+            lps = dpalgos.estimate_percentile(0.25, dimension,
+                                              epsilon / 4,
+                                              lower_bounds[index],
+                                              higher_bounds[index])
+            hps = dpalgos.estimate_percentile(0.75, dimension,
+                                              epsilon / 4,
+                                              lower_bounds[index],
+                                              higher_bounds[index])
+            
+            crude_mu = float(lps + hps) / 2
+            crude_iqr = abs(hps - lps)
+            u = crude_mu + 4 * rad * crude_iqr
+            l = crude_mu - 4 * rad * crude_iqr
+            # Compute windsorized mean for range
+            for index in range(len(dimension)):
+                if dimension[index] < l:
+                    dimension[index] = l
+                elif dimension[index] > u:
+                    dimension[index] = u
+                
+            mean_estimate =  float(sum(dimension)) / len(dimension)
+            logger.info("Final Answer (Unperturbed) Dimension %d = %f" % (index, mean_estimate))
+            noise = dpalgos.gen_noise(float(hps - lps) / (2 * epsilon * len(dimension)))
+            logger.info("Perturbation = " + str(noise))
+            final_output.append(mean_estimate + noise)
+            logger.info("Final Answer (Perturbed) Dimension %d = %f" % (index, final_output[-1]))
+        return final_output
+            
+    def _start_diff_analysis(self, ret_bounds, sanitize, privatize):
         """
         Start the differentially private data analysis
         """
@@ -175,7 +211,7 @@ class GuptRunTime(object):
 
         # Obtain the output bounds on the data
         start_time = time.time()
-        lower_bounds, higher_bounds = self._get_data_bounds(records, self.epsilon)
+        lower_bounds, higher_bounds = ret_bounds(records, self.epsilon)
         logger.debug("Finished generating the bounds: " + str(time.time() - start_time))
         logger.info("Output bounds are %s and %s" % (str(lower_bounds), str(higher_bounds)))
         
@@ -186,7 +222,7 @@ class GuptRunTime(object):
         logger.debug("Finished executing the computation: " + str(time.time() - start_time))
 
         # Ensure output is within bounds
-        self._sanitize_values(outputs, lower_bounds, higher_bounds)
+        sanitize(outputs, lower_bounds, higher_bounds)
                              
         # Ensure that the output dimension was the same for all
         # instances of the computation
@@ -198,9 +234,13 @@ class GuptRunTime(object):
             raise logger.exception("Output dimension is varying for each instance of the computation")
 
         # Aggregate and privatize the final output from various instances
-        final_output = self._privatize(self.epsilon / (3 * len(outputs[0])), \
-                                          lower_bounds, higher_bounds, outputs)
+        final_output = privatize(self.epsilon, lower_bounds,
+                                 higher_bounds, outputs)
         return final_output
+
+    def _simple_get_data_bounds(self, records, epsilon):
+        compute_driver = self.compute_driver_class()
+        return compute_driver.get_output_bounds()
         
     def _get_data_bounds(self, records, epsilon):
         """
@@ -337,7 +377,6 @@ class GuptRunTime(object):
 
     def _sanitize_values(self, values, lower_bounds, higher_bounds):
         bounds = zip(lower_bounds, higher_bounds)
-        print values
         for record in values: # output from each compute function
             for index in range(len(record)):
                 if record[index] < bounds[index][0]:
@@ -350,6 +389,7 @@ class GuptRunTime(object):
         Converts the output of many instances of the computation
         into a differentially private answer
         """
+        epsilon = epsilon / (3 * len(outputs[0]))
         bound_ranges = []
         for index in range(len(lower_bounds)):
             bound_ranges.append(abs(lower_bounds[index] - higher_bounds[index]))
@@ -370,8 +410,22 @@ class GuptRunTime(object):
             final_output[index] += noise
             logger.info("Final Answer (Perturbed) Dimension %d = %f" % (index, final_output[index]))
         return final_output
-            
 
+    def start(self):
+        return self._start_diff_analysis(ret_bounds=self._get_data_bounds,
+                                         sanitize=self._sanitize_values,
+                                         privatize=self._privatize)
+
+    def start_windsorized(self):
+        """
+        Start the differentially private data analysis as defined by
+        "Privacy-preserving Statistics Estimation with Optimal
+        Convergence Rates" by Adam Smith, 2011
+        """
+        return self._start_diff_analysis(ret_bounds=self._simple_get_data_bounds,
+                                         sanitize=lambda x, y, z: None,
+                                         privatize=self._privatize_windsorized)
+    
 if __name__ == '__main__':
     print >> sys.stderr, "This is a library and should not be executed standalone"
     sys.exit(1)

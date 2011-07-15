@@ -65,7 +65,7 @@ class GuptComputeDriver(object):
         """
         pass
 
-    def get_output_bounds(self, first_quartile, third_quartile):
+    def get_output_bounds(self, first_quartile=None, third_quartile=None):
         """
         Retrieve the bounds on the output for the computation
         """
