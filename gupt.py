@@ -269,12 +269,12 @@ class GuptRunTime(object):
             else:
                 lp = dpalgos.estimate_percentile(percentile_values[index][0],
                                                  records_transpose[index],
-                                                 epsilon,
+                                                 epsilon / (3 * len(records_transpose)),
                                                  min_vals[index],
                                                  max_vals[index])
                 hp = dpalgos.estimate_percentile(percentile_values[index][1],
                                                  records_transpose[index],
-                                                 epsilon,
+                                                 epsilon / (3 * len(records_transpose)),
                                                  min_vals[index],
                                                  max_vals[index])
                 lower_percentiles.append(lp)
