@@ -40,7 +40,7 @@ class MeanComputer(gupt.GuptComputeDriver):
 
 
 if __name__ == '__main__':
-    runtime = gupt.GuptRunTime(MeanComputer, reader, 1.0)
+    runtime = gupt.GuptRunTime(MeanComputer, reader, 1.0, gamma=2)
     output = runtime.start()
     print output
     

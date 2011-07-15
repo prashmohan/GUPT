@@ -246,14 +246,14 @@ class GuptRunTime(object):
         
         if not self.gamma:
             return self._get_blocks_naive(records)
-        return self._get_block_gamma(records)
+        return self._get_blocks_gamma_const_block_size(records) # or _get_blocks_gamma_const_num_blocks
 
-    def _get_block_gamma(self, records):
-        num_records = len(records)
-        num_blocks = self.gamma * int(num_records ** 0.4) 
-        # Each record is put into gamma blocks. Thus the total number
-        # of blocks becomes gamma * original number of block
-        block_size = int(num_records ** 0.6)
+    def _get_blocks_gamma(self, records, num_blocks, block_size):
+        """
+        Subsample from the set of records into num_blocks distinct
+        blocks. Distribute each record among gamma of the subsampled
+        blocks (each of which is of size block_size)
+        """
         # Size of each block does not change
         blocks = [[]] * num_blocks
         nonfull_blocks = range(num_blocks)
@@ -269,6 +269,23 @@ class GuptRunTime(object):
                     # already full
                     nonfull_blocks.remove(block_no)
         return blocks
+    
+    def _get_blocks_gamma_const_block_size(self, records):
+        num_records = len(records)
+        num_blocks = int(num_records ** 0.4) 
+        # Each record is put into num_blocks blocks. But each element
+        # is repeated in gamma blocks. Thus the total number of blocks
+        # becomes gamma * original number of block
+        block_size = self.gamma * int(num_records ** 0.6)
+        return self._get_blocks_gamma(records, num_blocks, block_size)
+    
+    def _get_blocks_gamma_const_num_blocks(self, records):
+        num_records = len(records)
+        num_blocks = self.gamma * int(num_records ** 0.4) 
+        # Each record is put into gamma blocks. Thus the total size of
+        # each blocks becomes gamma * original size of block
+        block_size = int(num_records ** 0.6)
+        return self._get_blocks_gamma(records, num_blocks, block_size)
             
     def _get_blocks_naive(self, records):
         num_records = len(records)
