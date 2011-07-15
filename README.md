@@ -14,7 +14,7 @@ pipe IO through some form of IPC mechanism.
   for enabling Differential Privacy
 
 ## Project Members ##
-       Prashanth Mohan (http://www.cs.berkeley.edu/~prmohan)
-       Abhradeep Guha Thakurta (https://sites.google.com/site/guhathakurtaabhradeep/)
-       Elaine Shi (http://www.eecs.berkeley.edu/~elaines/)
-       Dawn Song (http://www.cs.berkeley.edu/~dawnsong/)
+* Prashanth Mohan (http://www.cs.berkeley.edu/~prmohan)
+* Abhradeep Guha Thakurta (https://sites.google.com/site/guhathakurtaabhradeep/)
+* Elaine Shi (http://www.eecs.berkeley.edu/~elaines/)
+* Dawn Song (http://www.cs.berkeley.edu/~dawnsong/)
