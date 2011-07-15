@@ -122,7 +122,12 @@ class GuptOutput(object):
 
     def __iter__(self):
         return iter(self.output)
-            
+
+    def __getitem__(self, index):
+        return self.output[index]
+
+    def __setitem__(self, index, value):
+        self.output[index] = value
 
 class GuptRunTime(object):
     """
@@ -179,7 +184,10 @@ class GuptRunTime(object):
         start_time = time.time()
         outputs = self.parallel_execute(records)
         logger.debug("Finished executing the computation: " + str(time.time() - start_time))
-        
+
+        # Ensure output is within bounds
+        self._sanitize_values(outputs, lower_bounds, higher_bounds)
+                             
         # Ensure that the output dimension was the same for all
         # instances of the computation
         lengths = set([len(output) for output in outputs])
@@ -327,6 +335,16 @@ class GuptRunTime(object):
         # structures. 
         return self.execute(records, mapper=parmap)
 
+    def _sanitize_values(self, values, lower_bounds, higher_bounds):
+        bounds = zip(lower_bounds, higher_bounds)
+        print values
+        for record in values: # output from each compute function
+            for index in range(len(record)):
+                if record[index] < bounds[index][0]:
+                    record[index] = bounds[index][0]
+                elif record[index] > bounds[index][1]:
+                    record[index] = bounds[index][1]
+                    
     def _privatize(self, epsilon, lower_bounds, higher_bounds, outputs):
         """
         Converts the output of many instances of the computation
