@@ -182,11 +182,7 @@ class GuptRunTime(object):
             u = crude_mu + 4 * rad * crude_iqr
             l = crude_mu - 4 * rad * crude_iqr
             # Compute windsorized mean for range
-            for index in range(len(dimension)):
-                if dimension[index] < l:
-                    dimension[index] = l
-                elif dimension[index] > u:
-                    dimension[index] = u
+            self._sanitize_dimension(dimension, [(l, u)] * len(dimension))
                 
             mean_estimate =  float(sum(dimension)) / len(dimension)
             logger.info("Final Answer (Unperturbed) Dimension %d = %f" % (index, mean_estimate))
@@ -378,11 +374,14 @@ class GuptRunTime(object):
     def _sanitize_values(self, values, lower_bounds, higher_bounds):
         bounds = zip(lower_bounds, higher_bounds)
         for record in values: # output from each compute function
-            for index in range(len(record)):
-                if record[index] < bounds[index][0]:
-                    record[index] = bounds[index][0]
-                elif record[index] > bounds[index][1]:
-                    record[index] = bounds[index][1]
+            self._sanitize_dimension(record, bounds)
+
+    def _sanitize_dimension(self, record, bounds):
+        for index in range(len(record)):
+            if record[index] < bounds[index][0]:
+                record[index] = bounds[index][0]
+            elif record[index] > bounds[index][1]:
+                record[index] = bounds[index][1]
                     
     def _privatize(self, epsilon, lower_bounds, higher_bounds, outputs):
         """
