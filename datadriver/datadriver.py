@@ -59,7 +59,7 @@ class GuptDataDriver(object):
         This sets and initializes the data sources. Typically this
         would mean setting the file name or the database connection
         """
-        raise GuptException("This function should be over ridden")
+        raise Exception("This function should be over ridden")
 
     def set_input_bounds(self, bounds):
         self.min_bounds, self.max_bounds = zip(*bounds)
@@ -71,7 +71,7 @@ class GuptDataDriver(object):
         """
         Generate the next record
         """
-        raise GuptException("This function should be over ridden")
+        raise Exception("This function should be over ridden")
 
     def get_next_record(self):
         record = self.create_record()
