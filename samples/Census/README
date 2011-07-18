@@ -1,0 +1,6 @@
+This experiment calculates the average age in the census-income data
+set. The data for the data set can be downloaded from
+http://archive.ics.uci.edu/ml/datasets/Census-Income+%28KDD%29
+
+The dataset has not been included in the repository because of space
+restrictions.
