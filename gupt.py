@@ -55,7 +55,7 @@ root_logger.setLevel(logging.DEBUG)
 console = logging.StreamHandler(sys.stderr)
 console_format = '%(levelname)6s %(name)s: %(message)s'
 console.setFormatter(logging.Formatter(console_format))
-console.setLevel(logging.DEBUG)
+console.setLevel(logging.INFO)
 root_logger.addHandler(console)
 
 # Traceback handlers
@@ -140,21 +140,32 @@ class GuptRunTime(object):
     """
     def __init__(self, compute_driver_class, data_driver, epsilon,
                  blocker_name='NaiveDataBlocker', blocker_args=None):
-        self.epsilon = float(epsilon)
+        
         if not issubclass(compute_driver_class, GuptComputeDriver):
             raise log.exception("Argument compute_driver is not subclassed from GuptComputeDriver")
         if not isinstance(data_driver, GuptDataDriver):
             raise logger.exception("Argument data_driver is not subclassed from GuptDataDriver")
+        
         self.compute_driver_class = compute_driver_class
         self.data_driver = data_driver
+        
         if not blocker_args or \
                 getattr(blocker_args, '__iter__', False): # blocker_args is iterable
             self.blocker_args = blocker_args
         else:
             self.blocker_args = (blocker_args, )
-
         self.blocker = DataBlockerFactory.get_blocker(blocker_name)(self.blocker_args)
+        
+        new_epsilon = self.blocker.get_new_epsilon(float(epsilon))
+        self.epsilon = float(epsilon) if not new_epsilon else new_epsilon
 
+        logger.debug("Original epsilon is %f and new epsilon is %f" % (epsilon, new_epsilon))
+
+        logger.info("Initializing Gupt Runtime environment for analysis of the " +
+                    str(data_driver) + " data set " +
+                    "using the " + compute_driver_class.__name__ + " computation " +
+                    "with an epsilon value of " + str(epsilon))                    
+        
     @staticmethod
     def get_data_blockers():
         return DataBlockerFactory.get_blocker_names()

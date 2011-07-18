@@ -67,6 +67,13 @@ class GuptDataBlocker(object):
         """
         raise Exception("This function should be over ridden")
 
+    def get_new_epsilon(self, epsilon):
+        """
+        Return the new epsilon for the compuation based on the
+        blocking technique used
+        """
+        return epsilon
+
     
 class NaiveDataBlocker(GuptDataBlocker):
     def get_blocks(self, records):
@@ -90,6 +97,8 @@ class ResamplingBlocker(object):
         blocks. Distribute each record among gamma of the subsampled
         blocks (each of which is of size block_size)
         """
+        logger.info("Num Records: %d, Block size: %d, Num blocks: %d, gamma: %d" %
+                    (len(records), block_size, num_blocks, gamma))
         # Size of each block does not change
         blocks = [[]] * num_blocks
         nonfull_blocks = range(num_blocks)
@@ -121,6 +130,12 @@ class ResamplingDataBlockerConstantSize(GuptDataBlocker):
         block_size = self.args[0] * int(num_records ** 0.6)
         return ResamplingBlocker.get_blocks_gamma(records, num_blocks, block_size, self.args[0])
 
+    def get_new_epsilon(self, epsilon):
+        """
+        Return the new epsilon for the compuation based on the
+        blocking technique used
+        """
+        return float(epsilon) / self.args[0]
     
 class ResamplingDataBlockerConstantBlocks(GuptDataBlocker):
     def get_blocks(self, records):
@@ -135,3 +150,10 @@ class ResamplingDataBlockerConstantBlocks(GuptDataBlocker):
         # each blocks becomes gamma * original size of block
         block_size = int(num_records ** 0.6)
         return ResamplingBlocker.get_blocks_gamma(records, num_blocks, block_size, self.args[0])
+
+    def get_new_epsilon(self, epsilon):
+        """
+        Return the new epsilon for the compuation based on the
+        blocking technique used
+        """
+        return float(epsilon) / self.args[0]
