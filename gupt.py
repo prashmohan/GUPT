@@ -44,6 +44,7 @@ from itertools import izip
 
 import dpalgos
 from datadriver.datadriver import GuptDataDriver
+from datadriver.datablocker import DataBlockerFactory
 from computedriver.computedriver import GuptComputeDriver
 
 # Log verbosely
@@ -54,7 +55,7 @@ root_logger.setLevel(logging.DEBUG)
 console = logging.StreamHandler(sys.stderr)
 console_format = '%(levelname)6s %(name)s: %(message)s'
 console.setFormatter(logging.Formatter(console_format))
-console.setLevel(logging.INFO)
+console.setLevel(logging.DEBUG)
 root_logger.addHandler(console)
 
 # Traceback handlers
@@ -129,6 +130,7 @@ class GuptOutput(object):
     def __setitem__(self, index, value):
         self.output[index] = value
 
+
 class GuptRunTime(object):
     """
     This class defines the runtime for GUPT. It requires a DataDriver
@@ -136,7 +138,8 @@ class GuptRunTime(object):
     from the DataDriver to the computation and finally estimates the
     noise required to guarantee differential privacy.
     """
-    def __init__(self, compute_driver_class, data_driver, epsilon, gamma=None):
+    def __init__(self, compute_driver_class, data_driver, epsilon,
+                 blocker_name='NaiveDataBlocker', blocker_args=None):
         self.epsilon = float(epsilon)
         if not issubclass(compute_driver_class, GuptComputeDriver):
             raise log.exception("Argument compute_driver is not subclassed from GuptComputeDriver")
@@ -144,8 +147,18 @@ class GuptRunTime(object):
             raise logger.exception("Argument data_driver is not subclassed from GuptDataDriver")
         self.compute_driver_class = compute_driver_class
         self.data_driver = data_driver
-        self.gamma = gamma
+        if not blocker_args or \
+                getattr(blocker_args, '__iter__', False): # blocker_args is iterable
+            self.blocker_args = blocker_args
+        else:
+            self.blocker_args = (blocker_args, )
 
+        self.blocker = DataBlockerFactory.get_blocker(blocker_name)(self.blocker_args)
+
+    @staticmethod
+    def get_data_blockers():
+        return DataBlockerFactory.get_blocker_names()
+    
     def _sign(self, number):
         """
         Returns the sign of the number.
@@ -287,57 +300,7 @@ class GuptRunTime(object):
         # TODO: Check if we can use random.sample instead of
         # shuffle. Heavy performance benefits.
         random.shuffle(records)
-        
-        if not self.gamma:
-            return self._get_blocks_naive(records)
-        return self._get_blocks_gamma_const_block_size(records) # or _get_blocks_gamma_const_num_blocks
-
-    def _get_blocks_gamma(self, records, num_blocks, block_size):
-        """
-        Subsample from the set of records into num_blocks distinct
-        blocks. Distribute each record among gamma of the subsampled
-        blocks (each of which is of size block_size)
-        """
-        # Size of each block does not change
-        blocks = [[]] * num_blocks
-        nonfull_blocks = range(num_blocks)
-        
-        for record in records:
-            random.shuffle(nonfull_blocks)
-            # The current record is inserted into gamma available
-            # blocks chosen at random
-            for block_no in nonfull_blocks[:self.gamma]: 
-                blocks[block_no].append(record)
-                if len(blocks[block_no]) >= block_size:
-                    # Remove block from contenders list if block is
-                    # already full
-                    nonfull_blocks.remove(block_no)
-        return blocks
-    
-    def _get_blocks_gamma_const_block_size(self, records):
-        num_records = len(records)
-        num_blocks = int(num_records ** 0.4) 
-        # Each record is put into num_blocks blocks. But each element
-        # is repeated in gamma blocks. Thus the total number of blocks
-        # becomes gamma * original number of block
-        block_size = self.gamma * int(num_records ** 0.6)
-        return self._get_blocks_gamma(records, num_blocks, block_size)
-    
-    def _get_blocks_gamma_const_num_blocks(self, records):
-        num_records = len(records)
-        num_blocks = self.gamma * int(num_records ** 0.4) 
-        # Each record is put into gamma blocks. Thus the total size of
-        # each blocks becomes gamma * original size of block
-        block_size = int(num_records ** 0.6)
-        return self._get_blocks_gamma(records, num_blocks, block_size)
-            
-    def _get_blocks_naive(self, records):
-        num_records = len(records)
-        num_blocks = int(num_records ** 0.4)
-        block_size = int(math.ceil(num_records / num_blocks))
-        logger.info("Num Records: %d, Block size: %d, Num blocks: %d" %
-                    (num_records, block_size, num_blocks))
-        return [records[indices : indices + block_size] for indices in range(0, num_records, block_size)]
+        return self.blocker.get_blocks(records)
     
     def _apply_compute_driver(self, block):
         """
@@ -411,6 +374,7 @@ class GuptRunTime(object):
         return final_output
 
     def start(self):
+        logger.info("Starting normal differentially private analysis")
         return self._start_diff_analysis(ret_bounds=self._get_data_bounds,
                                          sanitize=self._sanitize_values,
                                          privatize=self._privatize)
@@ -421,6 +385,7 @@ class GuptRunTime(object):
         "Privacy-preserving Statistics Estimation with Optimal
         Convergence Rates" by Adam Smith, 2011
         """
+        logger.info("Starting windsorized differentially private analysis")
         return self._start_diff_analysis(ret_bounds=self._simple_get_data_bounds,
                                          sanitize=lambda x, y, z: None,
                                          privatize=self._privatize_windsorized)

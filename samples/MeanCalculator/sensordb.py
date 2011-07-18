@@ -45,11 +45,8 @@ class MeanComputer(gupt.GuptComputeDriver):
 
 
 if __name__ == '__main__':
-    logging.info("Starting output bounded computation")
-    runtime = gupt.GuptRunTime(MeanComputer, get_reader(), 1.0, gamma=2)
-    print runtime.start()
-
-    logging.info("Starting windsorized computation")
-    runtime = gupt.GuptRunTime(MeanComputer, get_reader(), 1.0, gamma=2)
-    print runtime.start_windsorized()
-    
+    for blocker in gupt.GuptRunTime.get_data_blockers():
+        runtime = gupt.GuptRunTime(MeanComputer, get_reader(), 1.0, blocker_name=blocker, blocker_args=2)
+        print runtime.start()
+        runtime = gupt.GuptRunTime(MeanComputer, get_reader(), 1.0, blocker_name=blocker, blocker_args=2)
+        print runtime.start_windsorized()
