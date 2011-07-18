@@ -227,7 +227,7 @@ class GuptRunTime(object):
         # Execute the various intances of the computation
         logger.info("Initializing execution of data analysis")
         start_time = time.time()
-        outputs = self.parallel_execute(records)
+        outputs = self.execute(records)
         logger.debug("Finished executing the computation: " + str(time.time() - start_time))
 
         # Ensure output is within bounds
