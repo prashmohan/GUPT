@@ -100,17 +100,24 @@ def parmap(f, X):
 
 # End of parallel map implementation
 
+def isiterable(record):
+    return getattr(record, '__iter__', False)
+
 class GuptOutput(object):
     def __init__(self):
         self.output = []
 
     def append(self, record):
-        if not record:
+        if record == None:
             return
-        if type(record) == types.ListType:
-            self.output.extend(record)
         else:
             self.output.append(record)
+
+    def extend(self, records):
+        if not isiterable(records):
+            self.append(records)
+        else:
+            self.output.extend(records)
 
     def __len__(self):
         return len(self.output)
@@ -149,8 +156,7 @@ class GuptRunTime(object):
         self.compute_driver_class = compute_driver_class
         self.data_driver = data_driver
         
-        if not blocker_args or \
-                getattr(blocker_args, '__iter__', False): # blocker_args is iterable
+        if not blocker_args or isiterable(blocker_args):
             self.blocker_args = blocker_args
         else:
             self.blocker_args = (blocker_args, )
@@ -184,36 +190,65 @@ class GuptRunTime(object):
         uniform = random.random() - 0.5
         return scale * self._sign(uniform) * math.log(1 - 2.0 * abs(uniform))
 
-    def _privatize_windsorized(self, epsilon, lower_bounds, higher_bounds, outputs):
-        outputs_transpose = zip(*outputs)
-        final_output = []
+    def _zip_multidim(self, *data):
+        """
+        Perform the functionality of the zip builtin when there is
+        more than 2 dimensions
+        """
+        for d in data:
+            if not isiterable(d):
+                return data
+        
+        return [self._zip_multidim(*d) for d in zip(*data)]
+    
 
-        for index, dimension in enumerate(outputs_transpose):
-            rad = len(dimension)**(1.0/3 + 0.1)
-            
-            # Estimate the range of outputs
-            lps = dpalgos.estimate_percentile(0.25, dimension,
-                                              epsilon / 4,
-                                              lower_bounds[index],
-                                              higher_bounds[index])
-            hps = dpalgos.estimate_percentile(0.75, dimension,
-                                              epsilon / 4,
-                                              lower_bounds[index],
-                                              higher_bounds[index])
-            
-            crude_mu = float(lps + hps) / 2
-            crude_iqr = abs(hps - lps)
-            u = crude_mu + 4 * rad * crude_iqr
-            l = crude_mu - 4 * rad * crude_iqr
-            # Compute windsorized mean for range
-            self._sanitize_dimension(dimension, [(l, u)] * len(dimension))
+    def _windsorized(self, epsilon, lower_bounds, higher_bounds, output):
+        """
+        Privatize each dimension of the output in a winsorized manner
+        """
+        if isiterable(output[0]):
+            noise = []
+            estimate = []
+            for index in range(len(output)):
+                e, n = self._windsorized(epsilon, lower_bounds[index], higher_bounds[index], output[index])
+                estimate.append(e)
+                noise.append(n)
+            return estimate, noise
+
+        dimension = list(output)
+        rad = len(output) ** (1.0 / 3 + 0.1)
+        
+        lps = dpalgos.estimate_percentile(0.25, dimension,
+                                          epsilon / 4,
+                                          lower_bounds,
+                                          higher_bounds)
+        hps = dpalgos.estimate_percentile(0.75, dimension,
+                                          epsilon / 4,
+                                          lower_bounds,
+                                          higher_bounds)
+        crude_mu = float(lps + hps) / 2
+        crude_iqr = abs(hps - lps)
+        u = crude_mu + 4 * rad * crude_iqr
+        l = crude_mu - 4 * rad * crude_iqr
+        # Compute windsorized mean for range
+        self._sanitize_multidim(dimension, [l] * len(dimension), [u] * len(dimension))
                 
-            mean_estimate =  float(sum(dimension)) / len(dimension)
-            logger.info("Final Answer (Unperturbed) Dimension %d = %f" % (index, mean_estimate))
-            noise = dpalgos.gen_noise(float(hps - lps) / (2 * epsilon * len(dimension)))
+        mean_estimate =  float(sum(dimension)) / len(dimension)
+        noise = dpalgos.gen_noise(float(hps - lps) / (2 * epsilon * len(dimension)))
+        return mean_estimate, noise
+            
+    def _privatize_windsorized(self, epsilon, lower_bounds, higher_bounds, outputs):
+        outputs_transpose = self._zip_multidim(*outputs)
+
+        final_output = []
+        # Add a Laplacian noise in order to ensure differential privacy
+        for index, dimension in enumerate(outputs_transpose):
+            estimate, noise = self._windsorized(epsilon, lower_bounds[index], higher_bounds[index], dimension)
+            logger.info("Final Answer (Unperturbed) Dimension " + str(index) + " = " + str(estimate))
             logger.info("Perturbation = " + str(noise))
-            final_output.append(mean_estimate + noise)
-            logger.info("Final Answer (Perturbed) Dimension %d = %f" % (index, final_output[-1]))
+            final_output.append(self._add_noise(estimate, noise))
+            logger.info("Final Answer (Perturbed) Dimension " + str(index) + " = " + str(final_output[-1]))
+            
         return final_output
             
     def _start_diff_analysis(self, ret_bounds, sanitize, privatize):
@@ -242,7 +277,8 @@ class GuptRunTime(object):
         logger.debug("Finished executing the computation: " + str(time.time() - start_time))
 
         # Ensure output is within bounds
-        sanitize(outputs, lower_bounds, higher_bounds)
+        for output in outputs:
+            sanitize(output, lower_bounds, higher_bounds)
                              
         # Ensure that the output dimension was the same for all
         # instances of the computation
@@ -322,7 +358,7 @@ class GuptRunTime(object):
         cur_output.append(compute_driver.initialize())
         for record in block:
             cur_output.append(compute_driver.execute(record))
-        cur_output.append(compute_driver.finalize())
+        cur_output.extend(compute_driver.finalize())
         return cur_output
     
     def execute(self, records, mapper=map):
@@ -356,38 +392,78 @@ class GuptRunTime(object):
                 record[index] = bounds[index][0]
             elif record[index] > bounds[index][1]:
                 record[index] = bounds[index][1]
-                    
+
+    def _sanitize_multidim(self, record, lower_bounds, higher_bounds):
+        if not isiterable(record):
+            # TODO: Raise Exception
+            logger.error("Sanitize function expects iterable objects")
+            return
+        
+        if isiterable(record[0]): # Multidimensional output
+            for index in range(len(record)):
+                self._sanitize_multidim(record[index], lower_bounds[index], higher_bounds[index])
+        else:
+            for index in range(len(record)):
+                if record[index] < lower_bounds[index]:
+                    record[index] = lower_bounds[index]
+                elif record[index] > higher_bounds[index]:
+                    record[index] = higher_bounds[index]
+
+    def _bound_range(self, lower_bounds, higher_bounds):
+        if not isiterable(lower_bounds):
+            return abs(lower_bounds - higher_bounds)
+        
+        return [self._bound_range(lower_bounds[index], higher_bounds[index]) for index in range(len(lower_bounds))]
+
+    def _avg_multidim(self, output):
+        """
+        Perform multidimensional averaging of outputs
+        """
+        if not isiterable(output):
+            # TODO: Raise exception 
+            logger.error("The output should never have been a scala value")
+            return
+        
+        if not isiterable(output[0]):
+            return float(sum(output)) / len(output)
+
+        return [self._avg_multidim([cur_output[index] for cur_output in output]) for index in range(len(output[0]))]
+
+    def _perturb(self, bound_ranges, epsilon):
+        if not isiterable(bound_ranges):
+            return dpalgos.gen_noise(float(bound_ranges) / epsilon)
+        
+        return [self._perturb(br, epsilon) for br in bound_ranges]
+
+    def _add_noise(self, data, noise):
+        if not isiterable(data):
+            return data + noise
+
+        return [self._add_noise(data[index], noise[index]) for index in range(len(data))]
+            
     def _privatize(self, epsilon, lower_bounds, higher_bounds, outputs):
         """
         Converts the output of many instances of the computation
         into a differentially private answer
         """
         epsilon = epsilon / (3 * len(outputs[0]))
-        bound_ranges = []
-        for index in range(len(lower_bounds)):
-            bound_ranges.append(abs(lower_bounds[index] - higher_bounds[index]))
-        
-        # Take the average of the outputs of each instance of the
-        # computation
-        final_output = [0.0] * len(outputs[0])
-        for output in outputs:
-            for index, val in enumerate(output):
-                final_output[index] += val
+        bound_ranges = self._bound_range(lower_bounds, higher_bounds)
+
+        final_output = self._avg_multidim(outputs)
 
         # Add a Laplacian noise in order to ensure differential privacy
         for index in range(len(final_output)):
-            final_output[index] = final_output[index] / len(outputs)
-            logger.info("Final Answer (Unperturbed) Dimension %d = %f" % (index, final_output[index]))
-            noise = dpalgos.gen_noise(float(bound_ranges[index]) / (epsilon * len(outputs)))
+            logger.info("Final Answer (Unperturbed) Dimension " + str(index) + " = " + str(final_output[index]))
+            noise = self._perturb(bound_ranges[index], (epsilon * len(outputs)))
             logger.info("Perturbation = " + str(noise))
-            final_output[index] += noise
-            logger.info("Final Answer (Perturbed) Dimension %d = %f" % (index, final_output[index]))
+            final_output[index] = self._add_noise(final_output[index], noise)
+            logger.info("Final Answer (Perturbed) Dimension " + str(index) + " = " + str(final_output[index]))
         return final_output
 
     def start(self):
         logger.info("Starting normal differentially private analysis")
         return self._start_diff_analysis(ret_bounds=self._get_data_bounds,
-                                         sanitize=self._sanitize_values,
+                                         sanitize=self._sanitize_multidim,
                                          privatize=self._privatize)
 
     def start_windsorized(self):
