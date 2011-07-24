@@ -378,7 +378,7 @@ class GuptRunTime(object):
         cur_output = GuptOutput()
         cur_output.append(compute_driver.initialize())
         for record in block:
-            cur_output.append(compute_driver._execute(record))
+            cur_output.append(compute_driver.execute(record))
         cur_output.extend(compute_driver.finalize())
         return cur_output
     
