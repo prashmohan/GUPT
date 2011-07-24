@@ -24,7 +24,7 @@ class HistogramComputer(GuptComputeDriver):
         self.buckets[temp] += 1
 
     def finalize(self):
-        return [float(val) / self.num_records for val in self.buckets]
+        return [[float(val) / self.num_records for val in self.buckets]]
 
     def get_output_bounds(self, first_quartile, third_quartile):
         return [0] * 11, [1] * 11
