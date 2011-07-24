@@ -250,7 +250,28 @@ class GuptRunTime(object):
             logger.info("Final Answer (Perturbed) Dimension " + str(index) + " = " + str(final_output[-1]))
             
         return final_output
-            
+
+    def _start_nonprivate_analysis(self):
+        """
+        Start a non private analysis on the data set
+        """
+        logger.debug("Initializing the non-private data analysis for " +
+                     str(self.compute_driver_class) + " on " +
+                     str(self.data_driver))
+        
+        # Retrieve the input records
+        start_time = time.time()
+        records = self.data_driver.get_records()
+        logger.debug("Finished reading all records: " + str(time.time() - start_time))
+
+        # Execute the various intances of the computation
+        logger.info("Initializing execution of data analysis")
+        start_time = time.time()
+        outputs = self._apply_compute_driver(records)
+        logger.debug("Finished executing the computation: " + str(time.time() - start_time))
+
+        return outputs
+
     def _start_diff_analysis(self, ret_bounds, sanitize, privatize):
         """
         Start the differentially private data analysis
@@ -273,7 +294,7 @@ class GuptRunTime(object):
         # Execute the various intances of the computation
         logger.info("Initializing execution of data analysis")
         start_time = time.time()
-        outputs = self.execute(records)
+        outputs = self._execute(records)
         logger.debug("Finished executing the computation: " + str(time.time() - start_time))
 
         # Ensure output is within bounds
@@ -357,11 +378,11 @@ class GuptRunTime(object):
         cur_output = GuptOutput()
         cur_output.append(compute_driver.initialize())
         for record in block:
-            cur_output.append(compute_driver.execute(record))
+            cur_output.append(compute_driver._execute(record))
         cur_output.extend(compute_driver.finalize())
         return cur_output
     
-    def execute(self, records, mapper=map):
+    def _execute(self, records, mapper=map):
         """
         Execute the computation provider in a differentially private
         manner for the given set of records.
@@ -371,7 +392,7 @@ class GuptRunTime(object):
         logger.debug("Starting data analytics on %d blocks" % (len(blocks)))
         return mapper(self._apply_compute_driver, blocks)
 
-    def parallel_execute(self, records):
+    def _parallel_execute(self, records):
         """
         Differentially private execution of the computation provider
         in a parallel fashion for the given set of records.
@@ -379,7 +400,7 @@ class GuptRunTime(object):
         # Not using multiprocessing.Pool.map because it is having
         # issues with pickling of functions and various data
         # structures. 
-        return self.execute(records, mapper=parmap)
+        return self._execute(records, mapper=parmap)
 
     def _sanitize_values(self, values, lower_bounds, higher_bounds):
         bounds = zip(lower_bounds, higher_bounds)
@@ -476,6 +497,10 @@ class GuptRunTime(object):
         return self._start_diff_analysis(ret_bounds=self._simple_get_data_bounds,
                                          sanitize=lambda x, y, z: None,
                                          privatize=self._privatize_windsorized)
+
+    def start_nonprivate(self):
+        logger.info("Starting non private analysis")
+        return self._start_nonprivate_analysis()
     
 if __name__ == '__main__':
     print >> sys.stderr, "This is a library and should not be executed standalone"
