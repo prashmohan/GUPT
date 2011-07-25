@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+<table border="5px">
+  <tr>
+    <th>Data Set ID</th>
+    <th>Data Set Name</th>
+    <th>Data Set Description</th>
+    <th>Data Set Owner</th>
+  </tr>
+{% for ds in datasets %}
+  <tr>
+    <td align="center">{{ ds.id }}</td>
+    <td align="center">{{ ds.name }}</td>
+    <td align="center">{{ ds.description }}</td>
+    <td align="center">{{ ds.owner.username }}</td>
+  </tr>
+{% endfor %}
+</table>  
+{% endblock %}

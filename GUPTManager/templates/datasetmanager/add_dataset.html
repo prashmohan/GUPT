@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+<form enctype="multipart/form-data" method="post" action="/dataset/submit/">
+{% csrf_token %}
+<table>
+  {{ form.as_table }}
+</table>
+  <input type="submit" value="{% trans 'Submit' %}" />
+</form>
+{% endblock %}
