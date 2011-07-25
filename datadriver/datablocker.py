@@ -100,7 +100,9 @@ class ResamplingBlocker(object):
         logger.info("Num Records: %d, Block size: %d, Num blocks: %d, gamma: %d" %
                     (len(records), block_size, num_blocks, gamma))
         # Size of each block does not change
-        blocks = [[]] * num_blocks
+        blocks = []
+        for x in range(num_blocks):
+            blocks.append([])
         nonfull_blocks = range(num_blocks)
         
         for record in records:
@@ -117,17 +119,13 @@ class ResamplingBlocker(object):
     
 class ResamplingDataBlockerConstantSize(GuptDataBlocker):
     def get_blocks(self, records):
-        """
-        Convert the given set of records into multiple smaller blocks
-        of data records
-        """
         logger.debug("Using " + self.__class__.__name__ + " for data blocking")
         num_records = len(records)
-        num_blocks = int(num_records ** 0.4) 
+        num_blocks = self.args[0] * int(math.ceil(num_records ** 0.4))
         # Each record is put into num_blocks blocks. But each element
         # is repeated in gamma blocks. Thus the total number of blocks
         # becomes gamma * original number of block
-        block_size = self.args[0] * int(num_records ** 0.6)
+        block_size = int(math.ceil(num_records ** 0.6))
         return ResamplingBlocker.get_blocks_gamma(records, num_blocks, block_size, self.args[0])
 
     def get_new_epsilon(self, epsilon):
@@ -145,10 +143,10 @@ class ResamplingDataBlockerConstantBlocks(GuptDataBlocker):
         """
         logger.debug("Using " + self.__class__.__name__ + " for data blocking")
         num_records = len(records)
-        num_blocks = self.args[0] * int(num_records ** 0.4) 
+        num_blocks = int(math.ceil(num_records ** 0.4))
         # Each record is put into gamma blocks. Thus the total size of
         # each blocks becomes gamma * original size of block
-        block_size = int(num_records ** 0.6)
+        block_size = self.args[0] * int(math.ceil(num_records ** 0.6))
         return ResamplingBlocker.get_blocks_gamma(records, num_blocks, block_size, self.args[0])
 
     def get_new_epsilon(self, epsilon):
