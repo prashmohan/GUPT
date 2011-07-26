@@ -43,6 +43,7 @@ from multiprocessing import Process, Pipe
 from itertools import izip
 
 import dpalgos
+from common import *
 from datadriver.datadriver import GuptDataDriver
 from datadriver.datablocker import DataBlockerFactory
 from computedriver.computedriver import GuptComputeDriver
@@ -99,9 +100,6 @@ def parmap(f, X):
     return [p.recv() for (p, c) in pipe]
 
 # End of parallel map implementation
-
-def isiterable(record):
-    return getattr(record, '__iter__', False)
 
 class GuptOutput(object):
     def __init__(self):
@@ -176,20 +174,6 @@ class GuptRunTime(object):
     def get_data_blockers():
         return DataBlockerFactory.get_blocker_names()
     
-    def _sign(self, number):
-        """
-        Returns the sign of the number.
-        -1 if number < 0, 0 if number == 0 and +1 if number > 0
-        """
-        return cmp(number, 0)
-
-    def _gen_noise(self, scale):
-        """
-        Generate a Laplacian noise to satisfy differential privacy
-        """
-        uniform = random.random() - 0.5
-        return scale * self._sign(uniform) * math.log(1 - 2.0 * abs(uniform))
-
     def _zip_multidim(self, *data):
         """
         Perform the functionality of the zip builtin when there is
@@ -200,7 +184,6 @@ class GuptRunTime(object):
                 return data
         
         return [self._zip_multidim(*d) for d in zip(*data)]
-    
 
     def _windsorized(self, epsilon, lower_bounds, higher_bounds, output):
         """
@@ -236,7 +219,8 @@ class GuptRunTime(object):
         mean_estimate =  float(sum(dimension)) / len(dimension)
         noise = dpalgos.gen_noise(float(hps - lps) / (2 * epsilon * len(dimension)))
         return mean_estimate, noise
-            
+
+    @profile_func
     def _privatize_windsorized(self, epsilon, lower_bounds, higher_bounds, outputs):
         outputs_transpose = self._zip_multidim(*outputs)
 
@@ -251,6 +235,7 @@ class GuptRunTime(object):
             
         return final_output
 
+    @profile_func
     def _start_nonprivate_analysis(self):
         """
         Start a non private analysis on the data set
@@ -272,6 +257,7 @@ class GuptRunTime(object):
 
         return outputs
 
+    @profile_func
     def _start_diff_analysis(self, ret_bounds, sanitize, privatize):
         """
         Start the differentially private data analysis
@@ -364,10 +350,11 @@ class GuptRunTime(object):
         return compute_driver.get_output_bounds(lower_percentiles,
                                                 higher_percentiles)
 
+    @profile_func
     def _get_blocks(self, records):
         # TODO: Check if we can use random.sample instead of
         # shuffle. Heavy performance benefits.
-        random.shuffle(records)
+        # random.shuffle(records)
         return self.blocker.get_blocks(records)
     
     def _apply_compute_driver(self, block):
@@ -381,7 +368,8 @@ class GuptRunTime(object):
             cur_output.append(compute_driver.execute(record))
         cur_output.extend(compute_driver.finalize())
         return cur_output
-    
+
+    @profile_func
     def _execute(self, records, mapper=map):
         """
         Execute the computation provider in a differentially private
@@ -392,6 +380,7 @@ class GuptRunTime(object):
         logger.debug("Starting data analytics on %d blocks" % (len(blocks)))
         return mapper(self._apply_compute_driver, blocks)
 
+    @profile_func
     def _parallel_execute(self, records):
         """
         Differentially private execution of the computation provider
@@ -461,7 +450,8 @@ class GuptRunTime(object):
             return data + noise
 
         return [self._add_noise(data[index], noise[index]) for index in range(len(data))]
-            
+
+    @profile_func
     def _privatize(self, epsilon, lower_bounds, higher_bounds, outputs):
         """
         Converts the output of many instances of the computation
@@ -481,12 +471,14 @@ class GuptRunTime(object):
             logger.info("Final Answer (Perturbed) Dimension " + str(index) + " = " + str(final_output[index]))
         return final_output
 
+    @profile_func
     def start(self):
         logger.info("Starting normal differentially private analysis")
         return self._start_diff_analysis(ret_bounds=self._get_data_bounds,
                                          sanitize=self._sanitize_multidim,
                                          privatize=self._privatize)
 
+    @profile_func
     def start_windsorized(self):
         """
         Start the differentially private data analysis as defined by
@@ -498,6 +490,7 @@ class GuptRunTime(object):
                                          sanitize=lambda x, y, z: None,
                                          privatize=self._privatize_windsorized)
 
+    @profile_func
     def start_nonprivate(self):
         logger.info("Starting non private analysis")
         return self._start_nonprivate_analysis()
