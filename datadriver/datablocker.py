@@ -36,9 +36,11 @@ import os
 import logging
 import math
 import random
+import time
+from common import *
 
 logger = logging.getLogger(__name__)
-
+    
 class DataBlockerFactory(object):
     @staticmethod
     def get_blocker(blocker_name):
@@ -89,6 +91,7 @@ class NaiveDataBlocker(GuptDataBlocker):
                     (num_records, block_size, num_blocks))
         return [records[indices : indices + block_size] for indices in range(0, num_records, block_size)]
 
+
 class ResamplingBlocker(object):
     @staticmethod
     def get_blocks_gamma(records, num_blocks, block_size, gamma):
@@ -106,10 +109,7 @@ class ResamplingBlocker(object):
         nonfull_blocks = range(num_blocks)
         
         for record in records:
-            random.shuffle(nonfull_blocks)
-            # The current record is inserted into gamma available
-            # blocks chosen at random
-            for block_no in nonfull_blocks[:gamma]: 
+            for block_no in random.sample(nonfull_blocks, gamma):
                 blocks[block_no].append(record)
                 if len(blocks[block_no]) >= block_size:
                     # Remove block from contenders list if block is
@@ -117,7 +117,9 @@ class ResamplingBlocker(object):
                     nonfull_blocks.remove(block_no)
         return blocks
     
+
 class ResamplingDataBlockerConstantSize(GuptDataBlocker):
+    @profile_func
     def get_blocks(self, records):
         logger.debug("Using " + self.__class__.__name__ + " for data blocking")
         num_records = len(records)
@@ -135,7 +137,9 @@ class ResamplingDataBlockerConstantSize(GuptDataBlocker):
         """
         return float(epsilon) / self.args[0]
     
+
 class ResamplingDataBlockerConstantBlocks(GuptDataBlocker):
+    @profile_func
     def get_blocks(self, records):
         """
         Convert the given set of records into multiple smaller blocks
