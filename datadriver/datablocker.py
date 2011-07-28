@@ -69,12 +69,11 @@ class GuptDataBlocker(object):
         """
         raise Exception("This function should be over ridden")
 
-    def get_new_epsilon(self, epsilon):
+    def get_sensitivity_factor(self):
         """
-        Return the new epsilon for the compuation based on the
-        blocking technique used
+        Return the change in sensitivity caused because of the blocking.
         """
-        return epsilon
+        return 1.0
 
     
 class NaiveDataBlocker(GuptDataBlocker):
@@ -130,12 +129,11 @@ class ResamplingDataBlockerConstantSize(GuptDataBlocker):
         block_size = int(math.ceil(num_records ** 0.6))
         return ResamplingBlocker.get_blocks_gamma(records, num_blocks, block_size, self.args[0])
 
-    def get_new_epsilon(self, epsilon):
+    def get_sensitivity_factor(self):
         """
-        Return the new epsilon for the compuation based on the
-        blocking technique used
+        Return the change in sensitivity caused because of the blocking.
         """
-        return float(epsilon) / self.args[0]
+        return self.args[0]
     
 
 class ResamplingDataBlockerConstantBlocks(GuptDataBlocker):
@@ -153,9 +151,8 @@ class ResamplingDataBlockerConstantBlocks(GuptDataBlocker):
         block_size = self.args[0] * int(math.ceil(num_records ** 0.6))
         return ResamplingBlocker.get_blocks_gamma(records, num_blocks, block_size, self.args[0])
 
-    def get_new_epsilon(self, epsilon):
+    def get_sensitivity_factor(self):
         """
-        Return the new epsilon for the compuation based on the
-        blocking technique used
+        Return the change in sensitivity caused because of the blocking.
         """
-        return float(epsilon) / self.args[0]
+        return self.args[0]
