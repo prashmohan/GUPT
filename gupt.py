@@ -160,10 +160,10 @@ class GuptRunTime(object):
             self.blocker_args = (blocker_args, )
         self.blocker = DataBlockerFactory.get_blocker(blocker_name)(self.blocker_args)
         
-        new_epsilon = self.blocker.get_new_epsilon(float(epsilon))
-        self.epsilon = float(epsilon) if not new_epsilon else new_epsilon
-
-        logger.debug("Original epsilon is %f and new epsilon is %f" % (epsilon, new_epsilon))
+        self.sensitivity_factor = self.blocker.get_sensitivity_factor()
+        logger.debug("The sensitivity of the output has changed by a factor of %f because of blocking" %
+                     (self.sensitivity_factor))
+        self.epsilon = float(epsilon)
 
         logger.info("Initializing Gupt Runtime environment for analysis of the " +
                     str(data_driver) + " data set " +
@@ -216,8 +216,8 @@ class GuptRunTime(object):
         # Compute windsorized mean for range
         self._sanitize_multidim(dimension, [l] * len(dimension), [u] * len(dimension))
                 
-        mean_estimate =  float(sum(dimension)) / len(dimension)
-        noise = dpalgos.gen_noise(float(hps - lps) / (2 * epsilon * len(dimension)))
+        mean_estimate = float(sum(dimension)) / len(dimension)
+        noise = dpalgos.gen_noise(self.sensitivity_factor * float(hps - lps) / (2 * epsilon * len(dimension)))
         return mean_estimate, noise
 
     @profile_func
@@ -441,7 +441,7 @@ class GuptRunTime(object):
 
     def _perturb(self, bound_ranges, epsilon):
         if not isiterable(bound_ranges):
-            return dpalgos.gen_noise(float(bound_ranges) / epsilon)
+            return dpalgos.gen_noise(self.sensitivity_factor * float(bound_ranges) / epsilon)
         
         return [self._perturb(br, epsilon) for br in bound_ranges]
 
