@@ -77,16 +77,12 @@ def estimate_percentile(percentile, records, epsilon, min_val, max_val):
     vals.sort()
 
     k = len(vals) - 2
-    half_epsilon = 2.0 / epsilon
+    inv_half_epsilon = 2.0 / epsilon
 
-    q = [0] * (len(vals) - 1)
-    for index in range(len(vals) - 1):
-        if vals[index + 1] != vals[index]:
-            part_sum = half_epsilon * math.log(vals[index + 1] - vals[index])
-        else:
-            part_sum = -1 * float("inf") # ln 0 = -inf
-        q[index] = (-1.0 * abs(index - percentile * k)) + part_sum + \
-            gen_noise(half_epsilon)
+    q = [(-1.0 * abs(index - percentile * k)) + \
+             inv_half_epsilon * np.log(vals[index + 1] - vals[index]) + \
+             gen_noise(inv_half_epsilon)
+         for index in range(len(vals) - 1)]
         
     picked = max(xrange(len(q)), key=q.__getitem__) # Pick the index of the largest element in the sequence
     return random.uniform(vals[picked], vals[picked + 1])
