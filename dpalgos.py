@@ -62,10 +62,13 @@ def _get_dp_hist(records, epsilon):
     return hist    
     
 def estimate_percentile(percentile, records, epsilon, min_val, max_val):
+    """
+    Perform a differentially private percentile estimation based on
+    Section 3.2 of "Discovering frequent patterns in sensitive data"
+    by R. Bhaskar et. al
+    """
     vals = [min_val, max_val]
     vals.extend(records)
-    # TODO: Possibly replace the List object with a numpy.array
-    # object. Might lead to better performance
     for index, val in enumerate(vals):
         if val > max_val:
             vals[index] = max_val
@@ -74,28 +77,19 @@ def estimate_percentile(percentile, records, epsilon, min_val, max_val):
     vals.sort()
 
     k = len(vals) - 2
-    diff_vals = [(vals[index + 1] - vals[index]) * math.exp(-epsilon * abs(index - percentile * k)) for index in range(len(vals) - 1)]
+    half_epsilon = 2.0 / epsilon
 
-    # Store the reverse partial sum
-    part_sum = [0] * (k + 1)
-    part_sum[k] = diff_vals[k]
-    for index in range(k - 1, -1, -1):
-        part_sum[index] = part_sum[index + 1] + diff_vals[index]
-
-    # Pick the partition
-    picked = 0
-    for index in range(k):
-        frac = 0.0
-        try:
-            frac = diff_vals[index] / part_sum[index]
-        except ZeroDivisionError:
-            continue
-        if random.random() < frac:            
-            picked = index
-            break
-
-    output = vals[picked] + (vals[picked + 1] - vals[picked]) * random.random();
-    return output    
+    q = [0] * (len(vals) - 1)
+    for index in range(len(vals) - 1):
+        if vals[index + 1] != vals[index]:
+            part_sum = half_epsilon * math.log(vals[index + 1] - vals[index])
+        else:
+            part_sum = -1 * float("inf") # ln 0 = -inf
+        q[index] = (-1.0 * abs(index - percentile * k)) + part_sum + \
+            gen_noise(half_epsilon)
+        
+    picked = max(xrange(len(q)), key=q.__getitem__) # Pick the index of the largest element in the sequence
+    return random.uniform(vals[picked], vals[picked + 1])
 
 def _sign(number):
     """
