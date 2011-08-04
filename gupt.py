@@ -193,7 +193,7 @@ class GuptRunTime(object):
             noise = []
             estimate = []
             for index in range(len(output)):
-                e, n = self._windsorized(epsilon, lower_bounds[index], higher_bounds[index], output[index])
+                e, n = self._windsorized(epsilon / len(output), lower_bounds[index], higher_bounds[index], output[index])
                 estimate.append(e)
                 noise.append(n)
             return estimate, noise
@@ -443,7 +443,7 @@ class GuptRunTime(object):
         if not isiterable(bound_ranges):
             return dpalgos.gen_noise(self.sensitivity_factor * float(bound_ranges) / epsilon)
         
-        return [self._perturb(br, epsilon) for br in bound_ranges]
+        return [self._perturb(br, epsilon / len(bound_ranges)) for br in bound_ranges]
 
     def _add_noise(self, data, noise):
         if not isiterable(data):
