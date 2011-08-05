@@ -37,9 +37,11 @@ import logging
 import math
 import random
 import numpy as np
+from common import profile_func
 
 logger = logging.getLogger(__name__)
 
+@profile_func
 def histogram(records_transpose, sensitive, epsilon):
     logger.debug("Estimating the distribution of values")
     hist = []
@@ -60,7 +62,8 @@ def _get_dp_hist(records, epsilon):
         hist[x] += gen_noise(1.0 / epsilon)
         hist[x] /= len(records)
     return hist    
-    
+
+@profile_func    
 def estimate_percentile(percentile, records, epsilon, min_val, max_val):
     """
     Perform a differentially private percentile estimation based on

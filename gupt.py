@@ -87,8 +87,8 @@ logger = logging.getLogger(__name__)
 # and parmap taken from
 # http://stackoverflow.com/questions/3288595/multiprocessing-using-pool-map-on-a-function-defined-in-a-class/5792404#5792404
 def spawn(f):
-    def func(pipe,x):
-        pipe.send(f(x))
+    def func(pipe, *x):
+        pipe.send(f(*x))
         pipe.close()
     return func
 
@@ -280,13 +280,13 @@ class GuptRunTime(object):
         # Execute the various intances of the computation
         logger.info("Initializing execution of data analysis")
         start_time = time.time()
-        outputs = self._execute(records)
+        outputs = self._parallel_execute(records)
         logger.debug("Finished executing the computation: " + str(time.time() - start_time))
 
         # Ensure output is within bounds
         for output in outputs:
             sanitize(output, lower_bounds, higher_bounds)
-                             
+
         # Ensure that the output dimension was the same for all
         # instances of the computation
         lengths = set([len(output) for output in outputs])
@@ -301,10 +301,12 @@ class GuptRunTime(object):
                                  higher_bounds, outputs)
         return final_output
 
+    @profile_func
     def _simple_get_data_bounds(self, records, epsilon):
         compute_driver = self.compute_driver_class()
         return compute_driver.get_output_bounds()
-        
+
+    @profile_func
     def _get_data_bounds(self, records, epsilon):
         """
         Generate the output bounds for the given data set for a pre
@@ -350,6 +352,69 @@ class GuptRunTime(object):
         return compute_driver.get_output_bounds(lower_percentiles,
                                                 higher_percentiles)
 
+    @profile_func
+    def _get_data_bounds_parallel(self, records, epsilon):
+        """
+        Generate the output bounds for the given data set for a pre
+        defined computation
+        """
+        compute_driver = self.compute_driver_class()
+        min_vals, max_vals = self.data_driver.min_bounds, self.data_driver.max_bounds
+        sensitive = self.data_driver.sensitiveness
+
+        # Find the first and third quartile of the distribution in a
+        # differentially private manner
+        records_transpose = zip(*records)
+        hist = dpalgos.histogram(records_transpose, sensitive, epsilon)
+        logger.debug("Ask compute driver what percentile to calculate")
+        percentile_values = compute_driver.get_percentiles(hist)
+
+        logger.debug("Estimating percentiles in parallel")
+        lower_percentiles = [0] * len(records_transpose)
+        higher_percentiles = [0] * len(records_transpose)
+
+        pipes = []
+        procs = []
+        for index in range(len(records_transpose)):
+            if sensitive[index]:
+                p, c = Pipe()
+                proc = Process(target=spawn(dpalgos.estimate_percentile),
+                               args=(c, percentile_values[index][0],
+                                     records_transpose[index],
+                                     epsilon / (3 * len(records_transpose)),
+                                     min_vals[index],
+                                     max_vals[index]))
+                pipes.append((p, c,))
+                procs.append(proc)
+                proc.start()
+
+                p, c = Pipe()
+                proc = Process(target=spawn(dpalgos.estimate_percentile),
+                               args=(c, percentile_values[index][1],
+                                     records_transpose[index],
+                                     epsilon / (3 * len(records_transpose)),
+                                     min_vals[index],
+                                     max_vals[index]))
+
+                pipes.append((p, c,))
+                procs.append(proc)
+                proc.start()
+
+        for index in range(len(records_transpose)):
+            if sensitive[index]:
+                procs[2 * index].join()
+                lower_percentiles[index] = pipes[2 * index][0].recv()
+
+                procs[2 * index + 1].join()
+                higher_percentiles[index] = pipes[2 * index + 1][0].recv()
+
+        logger.debug("Finished parallel percentile estimation")
+        logger.debug("Output bound estimation in progress")
+        # Use the ComputeDriver's bound generator to generate the
+        # output bounds
+        return compute_driver.get_output_bounds(lower_percentiles,
+                                                higher_percentiles)
+    
     @profile_func
     def _get_blocks(self, records):
         # TODO: Check if we can use random.sample instead of
@@ -474,7 +539,7 @@ class GuptRunTime(object):
     @profile_func
     def start(self):
         logger.info("Starting normal differentially private analysis")
-        return self._start_diff_analysis(ret_bounds=self._get_data_bounds,
+        return self._start_diff_analysis(ret_bounds=self._get_data_bounds_parallel,
                                          sanitize=self._sanitize_multidim,
                                          privatize=self._privatize)
 
