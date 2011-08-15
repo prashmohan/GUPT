@@ -399,6 +399,12 @@ class GuptRunTime(object):
                 pipes.append((p, c,))
                 procs.append(proc)
                 proc.start()
+            else:
+                procs.append(None)
+                procs.append(None)
+                pipes.append(None)
+                pipes.append(None)
+                
 
         for index in range(len(records_transpose)):
             if sensitive[index]:
