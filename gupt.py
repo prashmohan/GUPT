@@ -280,7 +280,7 @@ class GuptRunTime(object):
         # Execute the various intances of the computation
         logger.info("Initializing execution of data analysis")
         start_time = time.time()
-        outputs = self._parallel_execute(records)
+        outputs = self._execute(records)
         logger.debug("Finished executing the computation: " + str(time.time() - start_time))
 
         # Ensure output is within bounds
@@ -448,9 +448,41 @@ class GuptRunTime(object):
         """
         outputs = []
         blocks = self._get_blocks(records)
+        temp_blocks = blocks[:len(blocks) / 10]
+        all_data = []
+        for block in blocks:
+            all_data.extend(block) 
+        est_outputs = mapper(self._apply_compute_driver, temp_blocks)
+        real_output = self._apply_compute_driver(all_data)
+        self.est_error = self._estimate_error(self._avg_multidim(est_outputs), real_output)
+        logger.info("Estimated estimation error is " + str(self.est_error))
         logger.debug("Starting data analytics on %d blocks" % (len(blocks)))
         return mapper(self._apply_compute_driver, blocks)
 
+    def _estimate_error(self, avg_output, real_output):
+        """
+        Estimate the average normalized difference between two sets of
+        outputs
+        """
+        errors = []
+        self._recur_estimate_error(avg_output, real_output, errors)
+        return float(sum(errors)) / len(errors)
+
+    def _recur_estimate_error(self, avg_output, real_output, errors):
+        if not isiterable(avg_output):
+            errors.append(float(abs(avg_output - real_output)) / real_output)
+            return
+
+        if not isiterable(avg_output[0]):
+            for index in range(len(avg_output)):
+                self._recur_estimate_error(avg_output[index], real_output[index], errors)
+            return
+
+        for index in range(len(avg_output[0])):
+            self._recur_estimate_error([cur_output[index] for cur_output in avg_output],
+                                       [cur_output[index] for cur_output in real_output],
+                                       errors)
+    
     @profile_func
     def _parallel_execute(self, records):
         """
@@ -502,7 +534,7 @@ class GuptRunTime(object):
         """
         if not isiterable(output):
             # TODO: Raise exception 
-            logger.error("The output should never have been a scala value")
+            logger.error("The output should never have been a scalar value")
             return
         
         if not isiterable(output[0]):
