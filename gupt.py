@@ -217,7 +217,7 @@ class GuptRunTime(object):
         self._sanitize_multidim(dimension, [l] * len(dimension), [u] * len(dimension))
                 
         mean_estimate = float(sum(dimension)) / len(dimension)
-        noise = dpalgos.gen_noise(self.sensitivity_factor * float(hps - lps) / (2 * epsilon * len(dimension)))
+        noise = dpalgos.gen_noise(self.sensitivity_factor * float(abs(u - l)) / (2 * epsilon * len(dimension)))
         return mean_estimate, noise
 
     @profile_func
