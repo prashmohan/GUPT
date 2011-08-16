@@ -493,18 +493,6 @@ class GuptRunTime(object):
         # structures. 
         return self._execute(records, mapper=parmap)
 
-    def _sanitize_values(self, values, lower_bounds, higher_bounds):
-        bounds = zip(lower_bounds, higher_bounds)
-        for record in values: # output from each compute function
-            self._sanitize_dimension(record, bounds)
-
-    def _sanitize_dimension(self, record, bounds):
-        for index in range(len(record)):
-            if record[index] < bounds[index][0]:
-                record[index] = bounds[index][0]
-            elif record[index] > bounds[index][1]:
-                record[index] = bounds[index][1]
-
     def _sanitize_multidim(self, record, lower_bounds, higher_bounds):
         if not isiterable(record):
             # TODO: Raise Exception
@@ -521,22 +509,18 @@ class GuptRunTime(object):
                 elif record[index] > higher_bounds[index]:
                     record[index] = higher_bounds[index]
 
-
-    def _compute_sample_variance(self, est_anss):
-        avg_ans = MultiDimensional.avg(est_anss)
+    def _compute_sample_variance(self, est_ans):
+        avg_ans = MultiDimensional.avg(est_ans)
+        vals = [MultiDimensional.sub(ans, avg_ans) * MultiDimensional.sub(ans, avg_ans) for ans in est_ans]
+        return MultiDimensional.div_scalar(vals, len(est_ans))            
         
-
     def _estimate_epsilon(self, real_ans, est_ans, range_bound, epsilons):
         if not isiterable(real_ans):
             sd = real_ans * self.accuracy - abs(real_ans - est_ans)
             epsilons.append(range_bound * math.sqrt(2) / sd)
-            
 
     def _bound_range(self, lower_bounds, higher_bounds):
-        if not isiterable(lower_bounds):
-            return abs(lower_bounds - higher_bounds)
-        
-        return [self._bound_range(lower_bounds[index], higher_bounds[index]) for index in range(len(lower_bounds))]
+        return MultiDimensional.abs(MultiDimensional.sub(lower_bounds, higher_bounds))
 
     def _perturb(self, bound_ranges, epsilon):
         if not isiterable(bound_ranges):
