@@ -32,11 +32,8 @@ DAMAGE.
 """
 
 import sys
-import os
 import logging
 import logging.handlers
-import random
-import types
 import math
 import time
 from multiprocessing import Process, Pipe
@@ -418,6 +415,10 @@ class GuptRunTime(object):
     
     @profile_func
     def _get_blocks(self, records):
+        """
+        Convert a set of records into record blocks based on the
+        blocker defined by the programmer
+        """
         # TODO: Check if we can use random.sample instead of
         # shuffle. Heavy performance benefits.
         # random.shuffle(records)
@@ -443,43 +444,9 @@ class GuptRunTime(object):
         """
         outputs = []
         blocks = self._get_blocks(records)
-        
-        # temp_blocks = blocks[:len(blocks) / 10]
-        # all_data = []
-        # for block in blocks:
-        #     all_data.extend(block) 
-        # est_outputs = mapper(self._apply_compute_driver, temp_blocks)
-        # real_output = self._apply_compute_driver(all_data)
-        # self.est_error = self._estimate_error(self._avg_multidim(est_outputs), real_output)
-        # logger.info("Estimated estimation error is " + str(self.est_error))
-        
         logger.debug("Starting data analytics on %d blocks" % (len(blocks)))
         return mapper(self._apply_compute_driver, blocks)
 
-    # def _estimate_error(self, avg_output, real_output):
-    #     """
-    #     Estimate the average normalized difference between two sets of
-    #     outputs
-    #     """
-    #     errors = []
-    #     self._recur_estimate_error(avg_output, real_output, errors)
-    #     return float(sum(errors)) / len(errors)
-
-    # def _recur_estimate_error(self, avg_output, real_output, errors):
-    #     if not isiterable(avg_output):
-    #         errors.append(float(abs(avg_output - real_output)) / real_output)
-    #         return
-
-    #     if not isiterable(avg_output[0]):
-    #         for index in range(len(avg_output)):
-    #             self._recur_estimate_error(avg_output[index], real_output[index], errors)
-    #         return
-
-    #     for index in range(len(avg_output[0])):
-    #         self._recur_estimate_error([cur_output[index] for cur_output in avg_output],
-    #                                    [cur_output[index] for cur_output in real_output],
-    #                                    errors)
-    
     @profile_func
     def _parallel_execute(self, records):
         """
@@ -509,36 +476,40 @@ class GuptRunTime(object):
 
     def _compute_sample_variance(self, est_ans):
         avg_ans = MultiDimensional.avg(est_ans)
-        print 'Avg ANS', MultiDimensional.get_dimensionality(avg_ans)
         vals = [MultiDimensional.mul(MultiDimensional.sub(ans, avg_ans),
                                      MultiDimensional.sub(ans, avg_ans))
                 for ans in est_ans]
-        print len(vals), len(est_ans)
         return MultiDimensional.avg(vals)
 
     def _estimate_epsilon(self, outputs, range_bound, accuracy):
+        """
+        Estimate the required value of epsilon to meet the accuracy guarantees.
+        Solve for epsilon:
+        \sigma = \sqrt{A + \frac{s^2}{\epsilon^2 k^2}
+
+        Where s is the sensitivity of the function, k is the number of
+        blocks, B_i is the set of non private blocks and A is the
+        sample variance defined by        
+        A = \frac{1}{k} \sum^{k}_{i=1} (f(B_i) - \frac{1}{k} \sum^{k}_{j=1} f(B_j))^2
+        """
         non_private_outputs = outputs[:len(outputs) / 10]
-        print 'No of non private outputs', len(non_private_outputs)
         est_sample_variance = self._compute_sample_variance(non_private_outputs)
-        logging.info('Sample variance is' + str(est_sample_variance))
-        print MultiDimensional.get_dimensionality(est_sample_variance)
+        logging.debug('Sample variance is' + str(est_sample_variance))
+        
         real_ans = MultiDimensional.avg(non_private_outputs)
-        print MultiDimensional.get_dimensionality(real_ans)
         sd = MultiDimensional.mul_scalar(real_ans, accuracy)
-        print MultiDimensional.get_dimensionality(sd)
         var = MultiDimensional.mul(sd, sd)
-        print MultiDimensional.get_dimensionality(var)
         var_minus_sample_variance = MultiDimensional.sub(var, est_sample_variance)
-        print MultiDimensional.get_dimensionality(var_minus_sample_variance)
+        
         sqrt_var_minus_sample_variance = MultiDimensional.apply_to_each_scalar(var_minus_sample_variance,
                                                                                lambda x : math.sqrt(abs(x)))
-        print MultiDimensional.get_dimensionality(sqrt_var_minus_sample_variance)
-
         range_bound = MultiDimensional.div_scalar(range_bound, len(outputs))
         epsilon = MultiDimensional.div(range_bound, sqrt_var_minus_sample_variance)
         epsilons = MultiDimensional.get_scalars(epsilon)
         epsilon = sum(epsilons)
         logger.info("Epsilon needed is %g, but given %g" % (epsilon, self.epsilon))
+        
+        return epsilon
 
     def _bound_range(self, lower_bounds, higher_bounds):
         return MultiDimensional.abs(MultiDimensional.sub(lower_bounds, higher_bounds))

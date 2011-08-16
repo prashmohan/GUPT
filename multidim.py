@@ -34,6 +34,10 @@ DAMAGE.
 from common import *
 
 class MultiDimensional(object):
+    """
+    MultiDimensional is a namespace for operations to perform on
+    MultiDimensional data
+    """
     @staticmethod
     def avg(vectors):
         """
