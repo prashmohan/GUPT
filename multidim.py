@@ -60,11 +60,19 @@ class MultiDimensional(object):
         return [MultiDimensional.sub(vec_a[index], vec_b[index]) for index in range(len(vec_a))]
 
     @staticmethod
-    def abs(vec_a):
+    def apply_to_each_scalar(vec_a, func):
         if not isiterable(vec_a):
-            return abs(vec_a)
-
-        return [MultiDimensional.abs(vec_a[index]) for index in range(len(vec_a))]
+            try:
+                return func(vec_a)
+            except:
+                print 'VAL:', vec_a
+                raise
+        return [MultiDimensional.apply_to_each_scalar(vec_a[index], func)
+                for index in range(len(vec_a))]
+    
+    @staticmethod
+    def abs(vec_a):
+        return MultiDimensional.apply_to_each_scalar(vec_a, abs)
 
     @staticmethod
     def mul(vec_a, vec_b):
@@ -119,4 +127,26 @@ class MultiDimensional(object):
                 return vectors
         
         return [MultiDimensional.zip(*d) for d in zip(*vectors)]
+
+    @staticmethod
+    def get_scalars(vec_a):
+        vals = []
+        MultiDimensional._get_scalars(vec_a, vals)
+        return vals
+
+    @staticmethod
+    def _get_scalars(vec, arr):
+        if not isiterable(vec):
+            arr.append(vec)
+            return
+        for val in vec:
+            MultiDimensional._get_scalars(val, arr)
+
+    @staticmethod
+    def get_dimensionality(vec):
+        if not isiterable(vec):
+            return 1
+        
+        return [len(vec), MultiDimensional.get_dimensionality(vec[0])]
+        
         
