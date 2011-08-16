@@ -42,6 +42,7 @@ import time
 from multiprocessing import Process, Pipe
 from itertools import izip
 
+from multidim import MultiDimensional
 import dpalgos
 from common import *
 from datadriver.datadriver import GuptDataDriver
@@ -174,17 +175,6 @@ class GuptRunTime(object):
     def get_data_blockers():
         return DataBlockerFactory.get_blocker_names()
     
-    def _zip_multidim(self, *data):
-        """
-        Perform the functionality of the zip builtin when there is
-        more than 2 dimensions
-        """
-        for d in data:
-            if not isiterable(d):
-                return data
-        
-        return [self._zip_multidim(*d) for d in zip(*data)]
-
     def _windsorized(self, epsilon, lower_bounds, higher_bounds, output):
         """
         Privatize each dimension of the output in a winsorized manner
@@ -222,7 +212,7 @@ class GuptRunTime(object):
 
     @profile_func
     def _privatize_windsorized(self, epsilon, lower_bounds, higher_bounds, outputs):
-        outputs_transpose = self._zip_multidim(*outputs)
+        outputs_transpose = MultiDimensional.zip(*outputs)
 
         final_output = []
         # Add a Laplacian noise in order to ensure differential privacy
@@ -230,7 +220,7 @@ class GuptRunTime(object):
             estimate, noise = self._windsorized(epsilon, lower_bounds[index], higher_bounds[index], dimension)
             logger.info("Final Answer (Unperturbed) Dimension " + str(index) + " = " + str(estimate))
             logger.info("Perturbation = " + str(noise))
-            final_output.append(self._add_noise(estimate, noise))
+            final_output.append(MultiDimensional.add(estimate, noise))
             logger.info("Final Answer (Perturbed) Dimension " + str(index) + " = " + str(final_output[-1]))
             
         return final_output
@@ -283,7 +273,7 @@ class GuptRunTime(object):
         outputs = self._execute(records)
         logger.debug("Finished executing the computation: " + str(time.time() - start_time))
 
-        est_ans = self._avg_multidim(outputs[:len(outputs) / 10])
+        est_ans = MultiDimensional.avg(outputs[:len(outputs) / 10])
         real_ans = self._apply_compute_driver(records[:len(records) / 10])
         est_err_est = self._estimate_error(est_ans, real_ans)
         range_bound = self._bound_range(lower_bounds, higher_bounds)
@@ -533,7 +523,7 @@ class GuptRunTime(object):
 
 
     def _compute_sample_variance(self, est_anss):
-        avg_ans = self._avg_multidim(est_anss)
+        avg_ans = MultiDimensional.avg(est_anss)
         
 
     def _estimate_epsilon(self, real_ans, est_ans, range_bound, epsilons):
@@ -548,92 +538,11 @@ class GuptRunTime(object):
         
         return [self._bound_range(lower_bounds[index], higher_bounds[index]) for index in range(len(lower_bounds))]
 
-    def _avg_multidim(self, outputs):
-        """
-        Perform multidimensional averaging of outputs
-        """
-        temp_val = outputs[0]
-        for output in outputs[1:]:
-            temp_val = self._add_multidim(temp_val, output)
-
-        return self._div_multidim_scalar(temp_val, len(outputs))
-        
-        # if not isiterable(output):
-        #     # TODO: Raise exception 
-        #     logger.error("The output should never have been a scalar value")
-        #     return
-        
-        # if not isiterable(output[0]):
-        #     return float(sum(output)) / len(output)
-
-        # return [self._avg_multidim([cur_output[index] for cur_output in output]) for index in range(len(output[0]))]
-
-    def _add_multidim(self, vec_a, vec_b):
-        if not isiterable(vec_a) or not isiterable(vec_b):
-            return vec_a + vec_b
-
-        return [self._add_multidim(vec_a[index], vec_b[index]) for index in range(len(vec_a))]
-
-    def _sub_multidim(self, vec_a, vec_b):
-        if not isiterable(vec_a) or not isiterable(vec_b):
-            return vec_a - vec_b
-
-        return [self._sub_multidim(vec_a[index], vec_b[index]) for index in range(len(vec_a))]
-
-    def _abs_multidim(self, vec_a):
-        if not isiterable(vec_a):
-            return abs(vec_a)
-
-        return [self._abs_multidim(vec_a[index]) for index in range(len(vec_a))]
-
-    def _mul_multidim(self, vec_a, vec_b):
-        if not isiterable(vec_a) or not isiterable(vec_b):
-            return vec_a * vec_b
-
-        return [self._mul_multidim(vec_a[index], vec_b[index]) for index in range(len(vec_a))]
-
-    def _div_multidim(self, vec_a, vec_b):
-        if not isiterable(vec_a) or not isiterable(vec_b):
-            return vec_a / vec_b
-
-        return [self._div_multidim(vec_a[index], vec_b[index]) for index in range(len(vec_a))]
-
-    def _add_multidim_scalar(self, vec_a, scalar):
-        if not isiterable(vec_a):
-            return vec_a + scalar
-
-        return [self._add_multidim_scalar(vec_a[index], scalar) for index in range(len(vec_a))]
-
-    def _sub_multidim_scalar(self, vec_a, scalar):
-        if not isiterable(vec_a):
-            return vec_a - scalar
-
-        return [self._sub_multidim_scalar(vec_a[index], scalar) for index in range(len(vec_a))]
-
-    def _mul_multidim_scalar(self, vec_a, scalar):
-        if not isiterable(vec_a):
-            return vec_a * scalar
-
-        return [self._mul_multidim_scalar(vec_a[index], scalar) for index in range(len(vec_a))]
-
-    def _div_multidim_scalar(self, vec_a, scalar):
-        if not isiterable(vec_a):
-            return vec_a / scalar
-
-        return [self._div_multidim_scalar(vec_a[index], scalar) for index in range(len(vec_a))]
-                                          
-
     def _perturb(self, bound_ranges, epsilon):
         if not isiterable(bound_ranges):
             return dpalgos.gen_noise(self.sensitivity_factor * float(bound_ranges) / epsilon)
         
         return [self._perturb(br, epsilon / len(bound_ranges)) for br in bound_ranges]
-
-    def _add_noise(self, data, noise):
-        if not isiterable(data):
-            return data + noise
-
-        return [self._add_noise(data[index], noise[index]) for index in range(len(data))]
 
     @profile_func
     def _privatize(self, epsilon, lower_bounds, higher_bounds, outputs):
@@ -644,14 +553,14 @@ class GuptRunTime(object):
         epsilon = epsilon / (3 * len(outputs[0]))
         bound_ranges = self._bound_range(lower_bounds, higher_bounds)
 
-        final_output = self._avg_multidim(outputs)
+        final_output = MultiDimensional.avg(outputs)
 
         # Add a Laplacian noise in order to ensure differential privacy
         for index in range(len(final_output)):
             logger.info("Final Answer (Unperturbed) Dimension " + str(index) + " = " + str(final_output[index]))
             noise = self._perturb(bound_ranges[index], (epsilon * len(outputs)))
             logger.info("Perturbation = " + str(noise))
-            final_output[index] = self._add_noise(final_output[index], noise)
+            final_output[index] = MultiDimensional.add(final_output[index], noise)
             logger.info("Final Answer (Perturbed) Dimension " + str(index) + " = " + str(final_output[index]))
         return final_output
 
