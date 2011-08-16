@@ -276,13 +276,20 @@ class GuptRunTime(object):
         lower_bounds, higher_bounds = ret_bounds(records, self.epsilon)
         logger.debug("Finished generating the bounds: " + str(time.time() - start_time))
         logger.info("Output bounds are %s and %s" % (str(lower_bounds), str(higher_bounds)))
-        
+
         # Execute the various intances of the computation
         logger.info("Initializing execution of data analysis")
         start_time = time.time()
         outputs = self._execute(records)
         logger.debug("Finished executing the computation: " + str(time.time() - start_time))
 
+        est_ans = self._avg_multidim(outputs[:len(outputs) / 10])
+        real_ans = self._apply_compute_driver(records[:len(records) / 10])
+        est_err_est = self._estimate_error(est_ans, real_ans)
+        range_bound = self._bound_range(lower_bounds, higher_bounds)
+        epsilons = []
+        self._estimate_epsilon(real_ans, est_ans, range_bound, epsilons)
+        
         # Ensure output is within bounds
         for output in outputs:
             sanitize(output, lower_bounds, higher_bounds)
@@ -448,14 +455,16 @@ class GuptRunTime(object):
         """
         outputs = []
         blocks = self._get_blocks(records)
-        temp_blocks = blocks[:len(blocks) / 10]
-        all_data = []
-        for block in blocks:
-            all_data.extend(block) 
-        est_outputs = mapper(self._apply_compute_driver, temp_blocks)
-        real_output = self._apply_compute_driver(all_data)
-        self.est_error = self._estimate_error(self._avg_multidim(est_outputs), real_output)
-        logger.info("Estimated estimation error is " + str(self.est_error))
+        
+        # temp_blocks = blocks[:len(blocks) / 10]
+        # all_data = []
+        # for block in blocks:
+        #     all_data.extend(block) 
+        # est_outputs = mapper(self._apply_compute_driver, temp_blocks)
+        # real_output = self._apply_compute_driver(all_data)
+        # self.est_error = self._estimate_error(self._avg_multidim(est_outputs), real_output)
+        # logger.info("Estimated estimation error is " + str(self.est_error))
+        
         logger.debug("Starting data analytics on %d blocks" % (len(blocks)))
         return mapper(self._apply_compute_driver, blocks)
 
@@ -522,25 +531,97 @@ class GuptRunTime(object):
                 elif record[index] > higher_bounds[index]:
                     record[index] = higher_bounds[index]
 
+
+    def _compute_sample_variance(self, est_anss):
+        avg_ans = self._avg_multidim(est_anss)
+        
+
+    def _estimate_epsilon(self, real_ans, est_ans, range_bound, epsilons):
+        if not isiterable(real_ans):
+            sd = real_ans * self.accuracy - abs(real_ans - est_ans)
+            epsilons.append(range_bound * math.sqrt(2) / sd)
+            
+
     def _bound_range(self, lower_bounds, higher_bounds):
         if not isiterable(lower_bounds):
             return abs(lower_bounds - higher_bounds)
         
         return [self._bound_range(lower_bounds[index], higher_bounds[index]) for index in range(len(lower_bounds))]
 
-    def _avg_multidim(self, output):
+    def _avg_multidim(self, outputs):
         """
         Perform multidimensional averaging of outputs
         """
-        if not isiterable(output):
-            # TODO: Raise exception 
-            logger.error("The output should never have been a scalar value")
-            return
-        
-        if not isiterable(output[0]):
-            return float(sum(output)) / len(output)
+        temp_val = outputs[0]
+        for output in outputs[1:]:
+            temp_val = self._add_multidim(temp_val, output)
 
-        return [self._avg_multidim([cur_output[index] for cur_output in output]) for index in range(len(output[0]))]
+        return self._div_multidim_scalar(temp_val, len(outputs))
+        
+        # if not isiterable(output):
+        #     # TODO: Raise exception 
+        #     logger.error("The output should never have been a scalar value")
+        #     return
+        
+        # if not isiterable(output[0]):
+        #     return float(sum(output)) / len(output)
+
+        # return [self._avg_multidim([cur_output[index] for cur_output in output]) for index in range(len(output[0]))]
+
+    def _add_multidim(self, vec_a, vec_b):
+        if not isiterable(vec_a) or not isiterable(vec_b):
+            return vec_a + vec_b
+
+        return [self._add_multidim(vec_a[index], vec_b[index]) for index in range(len(vec_a))]
+
+    def _sub_multidim(self, vec_a, vec_b):
+        if not isiterable(vec_a) or not isiterable(vec_b):
+            return vec_a - vec_b
+
+        return [self._sub_multidim(vec_a[index], vec_b[index]) for index in range(len(vec_a))]
+
+    def _abs_multidim(self, vec_a):
+        if not isiterable(vec_a):
+            return abs(vec_a)
+
+        return [self._abs_multidim(vec_a[index]) for index in range(len(vec_a))]
+
+    def _mul_multidim(self, vec_a, vec_b):
+        if not isiterable(vec_a) or not isiterable(vec_b):
+            return vec_a * vec_b
+
+        return [self._mul_multidim(vec_a[index], vec_b[index]) for index in range(len(vec_a))]
+
+    def _div_multidim(self, vec_a, vec_b):
+        if not isiterable(vec_a) or not isiterable(vec_b):
+            return vec_a / vec_b
+
+        return [self._div_multidim(vec_a[index], vec_b[index]) for index in range(len(vec_a))]
+
+    def _add_multidim_scalar(self, vec_a, scalar):
+        if not isiterable(vec_a):
+            return vec_a + scalar
+
+        return [self._add_multidim_scalar(vec_a[index], scalar) for index in range(len(vec_a))]
+
+    def _sub_multidim_scalar(self, vec_a, scalar):
+        if not isiterable(vec_a):
+            return vec_a - scalar
+
+        return [self._sub_multidim_scalar(vec_a[index], scalar) for index in range(len(vec_a))]
+
+    def _mul_multidim_scalar(self, vec_a, scalar):
+        if not isiterable(vec_a):
+            return vec_a * scalar
+
+        return [self._mul_multidim_scalar(vec_a[index], scalar) for index in range(len(vec_a))]
+
+    def _div_multidim_scalar(self, vec_a, scalar):
+        if not isiterable(vec_a):
+            return vec_a / scalar
+
+        return [self._div_multidim_scalar(vec_a[index], scalar) for index in range(len(vec_a))]
+                                          
 
     def _perturb(self, bound_ranges, epsilon):
         if not isiterable(bound_ranges):
