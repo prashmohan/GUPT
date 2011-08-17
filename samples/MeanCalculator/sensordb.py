@@ -44,9 +44,29 @@ class MeanComputer(gupt.GuptComputeDriver):
         return [first_quartile[1]], [third_quartile[1]]
 
 
-if __name__ == '__main__':
+def run_expt(epsilon, gamma):
     for blocker in gupt.GuptRunTime.get_data_blockers():
-        runtime = gupt.GuptRunTime(MeanComputer, get_reader(), 1.0, blocker_name=blocker, blocker_args=2)
+        reader = get_reader()
+        runtime = gupt.GuptRunTime(MeanComputer, reader, float(epsilon), blocker_name=blocker, blocker_args=gamma)
         print runtime.start()
-        runtime = gupt.GuptRunTime(MeanComputer, get_reader(), 1.0, blocker_name=blocker, blocker_args=2)
+        
+        reader = get_reader()
+        runtime = gupt.GuptRunTime(MeanComputer, reader, float(epsilon), blocker_name=blocker, blocker_args=gamma)
         print runtime.start_windsorized()
+
+if __name__ == '__main__':
+    epsilon_vals = [1, 5]
+    gamma_vals = range(1, 10)
+    REPETITIONS = 20
+
+    for epsilon in epsilon_vals:
+        for gamma in gamma_vals:
+            for index in range(REPETITIONS):
+                run_expt(epsilon, gamma)
+
+    reader = get_reader()
+    runtime = gupt.GuptRunTime(MeanComputer, reader, 1.0)
+    print runtime.start_nonprivate()
+    del runtime
+    del reader
+    

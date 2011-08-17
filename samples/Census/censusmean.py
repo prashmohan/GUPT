@@ -35,19 +35,29 @@ class MeanComputer(GuptComputeDriver):
             return [0.0], [150.0]
         return first_quartile, third_quartile
 
-def run_expt(epsilon):
+def run_expt(epsilon, gamma):
     for blocker in gupt.GuptRunTime.get_data_blockers():
         reader = censusdatadriver.get_reader()
-        runtime = gupt.GuptRunTime(MeanComputer, reader, 1.0, blocker_name=blocker, blocker_args=2)
+        runtime = gupt.GuptRunTime(MeanComputer, reader, float(epsilon), blocker_name=blocker, blocker_args=gamma)
         print runtime.start()
         
         reader = censusdatadriver.get_reader()
-        runtime = gupt.GuptRunTime(MeanComputer, reader, 1.0, blocker_name=blocker, blocker_args=2)
+        runtime = gupt.GuptRunTime(MeanComputer, reader, float(epsilon), blocker_name=blocker, blocker_args=gamma)
         print runtime.start_windsorized()
         
 
 if __name__ == '__main__':
-    for epsilon in range(1, 10):
-        for index in range(20):
-            run_expt(epsilon)
-        
+    epsilon_vals = [1, 5]
+    gamma_vals = range(1, 10)
+    REPETITIONS = 20
+
+    for epsilon in epsilon_vals:
+        for gamma in gamma_vals:
+            for index in range(REPETITIONS):
+                run_expt(epsilon, gamma)
+
+    reader = censusdatadriver.get_reader()
+    runtime = gupt.GuptRunTime(MeanComputer, reader, 1.0)
+    print runtime.start_nonprivate()
+    del runtime
+    del reader

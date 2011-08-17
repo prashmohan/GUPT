@@ -43,19 +43,23 @@ class KMeansComputer(GuptComputeDriver):
                    4.7115999999999998, 4.9504999999999999]] * 3
 
 
-def run_expt(epsilon):
+def run_expt(epsilon, gamma):
     for blocker in gupt.GuptRunTime.get_data_blockers():
         reader = komarixdatadriver.get_reader()
-        runtime = gupt.GuptRunTime(KMeansComputer, reader, 1.0, blocker_name=blocker, blocker_args=2)
+        runtime = gupt.GuptRunTime(KMeansComputer, reader, epsilon, blocker_name=blocker, blocker_args=gamma)
         print runtime.start()
         
         reader = komarixdatadriver.get_reader()
-        runtime = gupt.GuptRunTime(KMeansComputer, reader, 1.0, blocker_name=blocker, blocker_args=2)
+        runtime = gupt.GuptRunTime(KMeansComputer, reader, epsilon, blocker_name=blocker, blocker_args=gamma)
         print runtime.start_windsorized()
         
 
 if __name__ == '__main__':
-    for epsilon in range(1, 2):
-        for index in range(1):
-            run_expt(epsilon)
-        
+    epsilon_vals = [1, 10]
+    gamma_vals = range(1, 4)
+    REPETITIONS = 5
+
+    for epsilon in epsilon_vals:
+        for gamma in gamma_vals:
+            for index in range(REPETITIONS):
+                run_expt(epsilon, gamma)
