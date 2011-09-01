@@ -274,6 +274,7 @@ class GuptRunTime(object):
         new_epsilon = self._estimate_epsilon(outputs,
                                              self._bound_range(lower_bounds, higher_bounds),
                                              0.1)
+        # self.epsilon = new_epsilon
         
         # Ensure output is within bounds
         for output in outputs:
@@ -492,12 +493,14 @@ class GuptRunTime(object):
         sample variance defined by        
         A = \frac{1}{k} \sum^{k}_{i=1} (f(B_i) - \frac{1}{k} \sum^{k}_{j=1} f(B_j))^2
         """
-        non_private_outputs = outputs[:len(outputs) / 10]
-        est_sample_variance = self._compute_sample_variance(non_private_outputs)
+        non_private_outputs = outputs[ : len(outputs) / 10]
+        est_sample_variance = MultiDimensional.div_scalar(self._compute_sample_variance(non_private_outputs), len(outputs))
         logging.debug('Sample variance is' + str(est_sample_variance))
         
         real_ans = MultiDimensional.avg(non_private_outputs)
-        sd = MultiDimensional.mul_scalar(real_ans, accuracy)
+        probability = 0.9
+        sd = MultiDimensional.div_scalar(MultiDimensional.mul_scalar(real_ans, accuracy), math.sqrt(1 / (1.0 - probability)))
+        
         var = MultiDimensional.mul(sd, sd)
         var_minus_sample_variance = MultiDimensional.sub(var, est_sample_variance)
         
@@ -507,8 +510,6 @@ class GuptRunTime(object):
         epsilon = MultiDimensional.div(range_bound, sqrt_var_minus_sample_variance)
         epsilons = MultiDimensional.get_scalars(epsilon)
         epsilon = sum(epsilons)
-        logger.info("Epsilon needed is %g, but given %g" % (epsilon, self.epsilon))
-        
         return epsilon
 
     def _bound_range(self, lower_bounds, higher_bounds):
