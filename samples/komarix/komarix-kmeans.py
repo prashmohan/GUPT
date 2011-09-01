@@ -1,11 +1,8 @@
 import logging
-import hashlib
 import gupt
 from computedriver.computedriver import GuptComputeDriver
-import time
 
-from scipy.cluster.vq import vq, kmeans2, whiten
-import scipy.spatial.distance as dist
+from scipy.cluster.vq import kmeans2, whiten
 import scipy.interpolate
 import numpy as np
 from operator import itemgetter
@@ -19,8 +16,7 @@ class KMeansComputer(GuptComputeDriver):
         self.recs = []
 
     def kmeans_cluster(self, data, buckets):
-        data = np.array(data)
-        data = whiten(data)
+        data = whiten(np.array(data))
         c, l = kmeans2(data, buckets, minit='random')
         return c
 
@@ -55,8 +51,8 @@ def run_expt(epsilon, gamma):
         
 
 if __name__ == '__main__':
-    epsilon_vals = [1, 10]
-    gamma_vals = range(1, 4)
+    epsilon_vals = range(1, 10)
+    gamma_vals = range(1, 5)
     REPETITIONS = 5
 
     for epsilon in epsilon_vals:
