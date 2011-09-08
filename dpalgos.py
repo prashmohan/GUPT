@@ -66,9 +66,7 @@ def _get_dp_hist(records, epsilon):
 @profile_func    
 def estimate_percentile(percentile, records, epsilon, min_val, max_val):
     """
-    Perform a differentially private percentile estimation based on
-    Section 3.2 of "Discovering frequent patterns in sensitive data"
-    by R. Bhaskar et. al
+    Get a differentially private percentile estimate
     """
     vals = [min_val, max_val]
     vals.extend(records)
@@ -79,16 +77,46 @@ def estimate_percentile(percentile, records, epsilon, min_val, max_val):
             vals[index] = min_val
     vals.sort()
 
-    k = len(vals) - 2
-    inv_half_epsilon = 2.0 / epsilon
+    k = len(vals) - 1
+    exp_vals = np.array([-1 * epsilon * abs(i - percentile * k) for i in range(k)])
 
-    q = [(-1.0 * abs(index - percentile * k)) + \
-             inv_half_epsilon * np.log(vals[index + 1] - vals[index]) + \
-             gen_noise(inv_half_epsilon)
-         for index in range(len(vals) - 1)]
+    # Find the ordering of the log y_i's rather than the ordering of
+    # the y_i's in order to ensure numerical stability. The
+    # exponential of a large negative number is approximated to zero
+    # because of the floating point accuracy errors.
+    z_vals = np.array(vals)
+    z_diff = np.diff(z_vals)
+    log_z_diff = np.log(z_diff)
+    
+    log_y_i = log_z_diff + exp_vals
+    
+    # Ordering of a sorted array
+    ordering = np.array(sorted(xrange(len(log_y_i)),
+                               key=lambda index: log_y_i[index],
+                               reverse=True))
+    
+    # We define the probability of picking the element at i by:
+    # p_i = \frac{1}{1+\sum_{j=i+1}^{k} y_j / y_i}
+    picked = -1
+    for index, i in enumerate(ordering):
+        indices = np.array(ordering[index+1:])
+        exp_part = np.exp([-1 * epsilon * (abs(j - percentile * k) -
+                                           (i - percentile * k)) \
+                                for j in indices])
         
-    picked = max(xrange(len(q)), key=q.__getitem__) # Pick the index of the largest element in the sequence
-    return random.uniform(vals[picked], vals[picked + 1])
+        z_part = z_diff[indices] / z_diff[i]
+        
+        prob = sum(z_part * exp_part)
+        prob += 1.0
+        prob = 1.0 / prob
+
+        rand_val = random.random()
+
+        if rand_val < prob:
+            picked = i
+            break
+        
+    return random.uniform(vals[picked], vals[picked + 1])        
 
 def _sign(number):
     """
