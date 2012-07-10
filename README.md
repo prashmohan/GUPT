@@ -26,7 +26,7 @@ for performing additional machine learning.
 
 2. Open the terminal and execute the following command replacing
 GUPT-DIRECTORY with the path to where you downloaded GUPT to:
-        export PYTHONPATH=GUPT-DIRECTORY:$PYTHONPATH
+> export PYTHONPATH=GUPT-DIRECTORY:$PYTHONPATH
 
 3. The samples folder lists various example scripts. Go into any of
 those directories and execute the python script.
